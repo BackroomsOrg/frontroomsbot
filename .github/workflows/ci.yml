@@ -1,0 +1,28 @@
+name: Python CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.11'
+
+    - name: Install Poetry
+      run: |
+          python -m pip install -U pip poetry
+          poetry check --no-interaction
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+    - name: Run Black Formatter
+      run: poetry run black --check .
+
+    - name: Run Ruff Linter
+      run: poetry run ruff .
