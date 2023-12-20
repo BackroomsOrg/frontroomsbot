@@ -72,37 +72,37 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         case _:
             return
 
+
 @client.event
 async def on_message(message: discord.Message):
     if message.author == client.user:
         return
     if message.content.endswith("??"):
-        API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+        API_URL = (
+            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+        )
         prompt = f"""Seš expertní AI, které odpovídá na otázky ohledně různých témat.
 
 [User]: Jaky pouziva https port?
 [AI]: Protokol HTTPS používá port 443.
 [User]: {message.content.replace("??", "?")}
 [AI]: """
-        headers = {
-            "Authorization": f"Bearer {HF_TOKEN}"
-        }
+        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
         data = {
             "inputs": prompt,
-            "max_new_tokens": 250, # This is maximum HF API allows
-            "options": {
-                "wait_for_model": True # Wait if model is not ready
-            }
+            "max_new_tokens": 250,  # This is maximum HF API allows
+            "options": {"wait_for_model": True},  # Wait if model is not ready
         }
         response = requests.post(API_URL, headers=headers, json=data)
         if response.status_code == 200:
             json = response.json()
-            raw_text = json[0]['generated_text']
+            raw_text = json[0]["generated_text"]
             # Filter out the prompt
             text = raw_text.replace(prompt, "").strip()
             # Remove new questions hallucinated by model
             text = text.split("\n[User]:")[0]
             await message.reply(text)
+
 
 @client.event
 async def on_ready():
