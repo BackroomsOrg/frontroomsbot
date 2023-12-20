@@ -1,6 +1,6 @@
 import os
 import discord
-import requests
+import httpx
 
 from dotenv import load_dotenv
 
@@ -93,7 +93,8 @@ async def on_message(message: discord.Message):
             "max_new_tokens": 250,  # This is maximum HF API allows
             "options": {"wait_for_model": True},  # Wait if model is not ready
         }
-        response = requests.post(API_URL, headers=headers, json=data)
+        async with httpx.AsyncClient() as ac:
+            response = await ac.post(API_URL, headers=headers, json=data)
         if response.status_code == 200:
             json = response.json()
             raw_text = json[0]["generated_text"]
