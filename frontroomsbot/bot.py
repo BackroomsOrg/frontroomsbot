@@ -4,7 +4,8 @@ import httpx
 
 from dotenv import load_dotenv
 
-from random import randint, choice, uniform
+from random import randint, choices, uniform
+from discord import app_commands
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -48,13 +49,22 @@ async def flip(interaction: discord.Interaction):
     await interaction.response.send_message(f"{result}")
 
 
-@tree.command(name="kasparek", description="Zjistí jakého máš kašpara", guild=guild)
+@app_commands.checks.cooldown(1, 60.0)
+@tree.command(name="kasparek", description="Zjistí jakého máš kašpárka", guild=guild)
 async def kasparek(interaction: discord.Interaction):
-    unit = choice(["m", "cm", "mm", "nm"])
-    result = round(uniform(0, 50), 5)
+    unit = choices(["cm", "mm"], weights=(95, 5), k=1)[0]
+    result = round(uniform(0, 50), 2)
 
-    message = f"{result} {unit}" if unit else f"{result}"
+    message = f"{result}{unit}" if unit else f"{result}"
     await interaction.response.send_message(message)
+
+
+@kasparek.error
+async def on_kasparek_error(
+    interaction: discord.Interaction, error: app_commands.AppCommandError
+):
+    if isinstance(error, app_commands.CommandOnCooldown):
+        await interaction.response.send_message(str(error), ephemeral=True)
 
 
 @tree.command(name="sync", description="Sync commands", guild=guild)
