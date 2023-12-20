@@ -71,7 +71,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
             if channel == direct:
                 return
-            
+
             bookmark = get_bookmark(user, message)
             await direct.send(embed=bookmark)
         case _:
