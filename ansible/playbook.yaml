@@ -1,15 +1,16 @@
 - name: Deploy new container to the server
   hosts: all
   tasks:
-   - name: Login to ghcr.io
-     docker_login:
-       url: ghcr.io
-       username: '{{ username }}'
-       passowrd: '{{ password }}'
+  - name: Login to ghcr.io
+    docker_login:
+      url: ghcr.io
+      username: '{{ username }}'
+      password: '{{ password }}'
 
-   - name: Ensure a container is running
-     docker_container:
-       name: bot
-       state: started
-       image: '{{ username }}/bot:latest'
-       pull: true
+  - name: Ensure a container is running
+    docker_container:
+      name: bot
+      state: started
+      platform: linux/arm64/v8
+      image: 'ghcr.io/{{ username }}/bot:latest'
+      pull: true
