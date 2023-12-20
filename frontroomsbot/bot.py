@@ -12,6 +12,7 @@ GUILD = os.getenv("GUILD_ID")
 intents = discord.Intents.default()
 intents.message_content = True
 intents.reactions = True
+intents.members = True
 
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
@@ -54,6 +55,26 @@ async def sync(interaction: discord.Interaction):
     await interaction.response.send_message("Synced!")
     print("Command tree synced")
 
+@tree.command(name="csgoroadtoglobal", description="CSGOROADTOGLOBAL", guild=guild)
+async def csgo(interaction: discord.Interaction):
+    # list of zmrds
+    zmrdi = ['JosefKuchar', 'Roytak', 'Soromis', 'TominoBLM', 'Addy Daddy', 'Kubik', 'MrStinky']
+
+    # get guild like a dog, bcs idk how else
+    gl = [a for a in client.guilds if a.id == guild.id]
+    g = gl[0]
+
+    # get discord ids of zmrds, not to leak them in the source code ofc
+    zmrdiIDs = []
+    async for member in g.fetch_members():
+        if member.global_name in zmrdi:
+            zmrdiIDs.append(member.id)
+
+    # create the message and ship it, time to play some cs
+    message = f'CSGOROADTOGLOBAL\nJDEME CSKO ZMRDI'
+    for zmrd in zmrdiIDs:
+        message = message + f' <@{zmrd}>'
+    await interaction.response.send_message(message)
 
 @client.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
