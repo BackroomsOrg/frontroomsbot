@@ -102,7 +102,10 @@ async def on_message(message: discord.Message):
             text = raw_text.replace(prompt, "").strip()
             # Remove new questions hallucinated by model
             text = text.split("\n[User]:")[0]
-            await message.reply(text)
+            allowed = discord.AllowedMentions(
+                roles=False, everyone=False, users=True, replied_user=True
+            )
+            await message.reply(text, allowed_mentions=allowed)
 
 
 @client.event
