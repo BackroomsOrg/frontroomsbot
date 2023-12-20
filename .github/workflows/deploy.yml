@@ -5,7 +5,8 @@ permissions:
 on:
   workflow_dispatch:
   push:
-    on: ['master']
+    branches:
+    - 'master'
 
 jobs:
   build:
@@ -47,15 +48,16 @@ jobs:
     - name: Run playbook
       uses: dawidd6/action-ansible-playbook@v2
       with:
-        playbook: playbook.yml
+        playbook: playbook.yaml
 
         directory: ./ansible
 
         key: ${{secrets.SSH_PRIVATE_KEY}}
 
         options: |
-          --inventory ${{secrets.HOST_URL}},
-          --extra-vars username=${{github.repository_owner}}
+          --inventory ${{vars.BOT_HOST}},
+          --extra-vars username=backroomsorg
           --extra-vars password=${{secrets.GITHUB_TOKEN}}
-
-    
+          --extra-vars DISCORD_TOKEN=${{secrets.BOT_TOKEN}}
+          --extra-vars GUILD=${{vars.GUILD_ID}}
+          --extra-vars HF_TOKEN=${{secrets.HF_TOKEN}}

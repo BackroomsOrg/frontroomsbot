@@ -13,4 +13,8 @@
       state: started
       platform: linux/arm64/v8
       image: 'ghcr.io/{{ username }}/bot:latest'
+      env:
+        DISCORD_TOKEN: '{{ DISCORD_TOKEN }}'
+        GUILD_ID: '{{ GUILD }}'
+        HF_TOKEN: '{{ HF_TOKEN }}'
       pull: true
