@@ -94,6 +94,8 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
 @client.event
 async def on_message(message: discord.Message):
+    if message.channel.id != 1187163442814128128:  # botrooms
+        return
     if message.author == client.user:
         return
     if message.content.endswith("??"):
