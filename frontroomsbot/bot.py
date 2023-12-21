@@ -57,23 +57,21 @@ async def sync(interaction: discord.Interaction):
 
 @tree.command(name="csgoroadtoglobal", description="CSGOROADTOGLOBAL", guild=guild)
 async def csgo(interaction: discord.Interaction):
-    # list of zmrds
-    zmrdi = ['JosefKuchar', 'Roytak', 'Soromis', 'TominoBLM', 'Addy Daddy', 'Kubik', 'MrStinky']
-
-    # get guild like a dog, bcs idk how else
-    gl = [a for a in client.guilds if a.id == guild.id]
-    g = gl[0]
-
-    # get discord ids of zmrds, not to leak them in the source code ofc
-    zmrdiIDs = []
-    async for member in g.fetch_members():
-        if member.global_name in zmrdi:
-            zmrdiIDs.append(member.id)
+    # gamers and their ids
+    gamers = {
+        "JosefKuchar": 1019696733019713626,
+        "Roytak": 302863931507212298,
+        "Soromis": 306158645673197581,
+        "TominoBLM": 290511348100628480,
+        "Addy Daddy": 262527189507899392,
+        "Kubik": 292365427777208322,
+        "MrStinky": 474190499964780545
+    }
 
     # create the message and ship it, time to play some cs
-    message = f'CSGOROADTOGLOBAL\nJDEME CSKO ZMRDI'
-    for zmrd in zmrdiIDs:
-        message = message + f' <@{zmrd}>'
+    message = f'CSGOROADTOGLOBAL\nNÁSTUP'
+    for uid in gamers.values():
+        message = message + f' <@{uid}>'
     await interaction.response.send_message(message)
 
 @client.event
