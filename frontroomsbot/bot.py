@@ -186,7 +186,7 @@ async def on_message(message: discord.Message):
         API_URL = (
             "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
         )
-        now = datetime.now(pytz.timezone("Europe/Prague"))
+        now = datetime.datetime.now(pytz.timezone("Europe/Prague"))
         prompt = f"""Aktuální datum a čas je {now.strftime("%d.%m.%Y %H:%M")}.
 Seš expertní AI, které odpovídá na otázky ohledně různých témat.
 
@@ -213,6 +213,8 @@ Seš expertní AI, které odpovídá na otázky ohledně různých témat.
                 roles=False, everyone=False, users=True, replied_user=True
             )
             await message.reply(text, allowed_mentions=allowed)
+        else:
+            print(f"LLM failed {response.status_code}: {response.json()}")
 
 
 @client.event
