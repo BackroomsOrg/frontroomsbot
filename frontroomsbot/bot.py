@@ -141,25 +141,11 @@ async def timeout_handle(message: discord.message.Message):
             # FIXME
             # we need to maintain when was the last timeout,
             # otherwise someone could get locked out
-            duration = datetime.timedelta(minutes=config["reactions"]["timeout_duration"])
+            duration = datetime.timedelta(
+                minutes=config["reactions"]["timeout_duration"]
+            )
             await message.author.timeout(duration)
             break
-
-
-@client.event
-async def pin(payload: discord.RawReactionActionEvent):
-    reaction = payload.emoji.name
-    channel = client.get_channel(payload.channel_id)
-    message = await channel.fetch_message(payload.message_id)
-
-    user = await client.fetch_user(payload.user_id)
-
-    match reaction:
-        case "🔖":
-            direct = await user.create_dm()
-            await direct.send(message.content)
-        case _:
-            return
 
 
 @client.event
