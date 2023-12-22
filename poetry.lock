@@ -617,6 +617,17 @@ files = [
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "pytz"
+version = "2023.3.post1"
+description = "World timezone definitions, modern and historical"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pytz-2023.3.post1-py2.py3-none-any.whl", hash = "sha256:ce42d816b81b68506614c11e8937d3aa9e41007ceb50bfdcb0749b921bf646c7"},
+    {file = "pytz-2023.3.post1.tar.gz", hash = "sha256:7b4fddbeb94a1eba4b557da24f19fdf9db575192544270a9101d8509f9f43d7b"},
+]
+
+[[package]]
 name = "ruff"
 version = "0.1.8"
 description = "An extremely fast Python linter and code formatter, written in Rust."
@@ -857,4 +868,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "322c823cd7714ed6759014936741adbabf94963b0cd05cccdd8a6877859ad1a3"
+content-hash = "4a6b6a40b6e4c5be0027976511841c3eb4228f29295588ced56718ef678bb314"
