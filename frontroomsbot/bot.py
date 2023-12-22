@@ -2,6 +2,7 @@ import datetime
 import os
 import discord
 import httpx
+import toml
 
 from dotenv import load_dotenv
 
@@ -21,8 +22,8 @@ client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 guild = discord.Object(id=GUILD)
 
-PIN_COUNT = 5
-TIMEOUT_COUNT = 15
+with open("config.toml", "r") as f:
+    config = toml.load(f)
 
 
 @tree.command(name="hello", description="Sends hello!", guild=guild)
@@ -114,7 +115,7 @@ async def pin_handle(
             react.emoji == "📌"
             and not message.pinned
             and not message.is_system()
-            and react.count >= PIN_COUNT
+            and react.count >= config["reactions"]["pin_count"]
         ):
             # FIXME
             # pins = await channel.pins()
@@ -135,12 +136,12 @@ async def timeout_handle(message: discord.message.Message):
             react.emoji == "🔇"
             and not message.author.is_timed_out()
             and not message.is_system()
-            and react.count >= TIMEOUT_COUNT
+            and react.count >= config["reactions"]["timeout_count"]
         ):
             # FIXME
             # we need to maintain when was the last timeout,
             # otherwise someone could get locked out
-            duration = datetime.timedelta(minutes=1)
+            duration = datetime.timedelta(minutes=config["reactions"]["timeout_duration"])
             await message.author.timeout(duration)
             break
 

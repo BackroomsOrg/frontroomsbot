@@ -1,0 +1,4 @@
+[reactions]
+pin_count = 5
+timeout_count = 15
+timeout_duration = 1
