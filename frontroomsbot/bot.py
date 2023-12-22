@@ -1,12 +1,13 @@
+import datetime
 import os
 import discord
 import httpx
+import toml
 
 from dotenv import load_dotenv
 
 from random import randint, choices, uniform
 from discord import app_commands
-from datetime import datetime
 import pytz
 
 load_dotenv()
@@ -21,6 +22,9 @@ intents.reactions = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 guild = discord.Object(id=GUILD)
+
+with open("config.toml", "r") as f:
+    config = toml.load(f)
 
 
 @tree.command(name="hello", description="Sends hello!", guild=guild)
@@ -90,8 +94,59 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         case "🔖":
             direct = await user.create_dm()
             await direct.send(message.content)
+        case "📌":
+            await pin_handle(message, channel)
+        case "🔇":
+            await timeout_handle(message)
         case _:
             return
+
+
+async def pin_handle(
+    message: discord.message.Message, channel: discord.channel.TextChannel
+):
+    """Handles auto pinning of messages
+
+    :param message: Message that received a reaction
+    :param channel: Channel where the message is
+    :return:
+    """
+    for react in message.reactions:
+        if (
+            react.emoji == "📌"
+            and not message.pinned
+            and not message.is_system()
+            and react.count >= config["reactions"]["pin_count"]
+        ):
+            # FIXME
+            # pins = await channel.pins()
+            # we need to maintain when was the last warning about filled pins,
+            # otherwise we will get spammed by the pins full message
+            await message.pin()
+            break
+
+
+async def timeout_handle(message: discord.message.Message):
+    """Handles auto timeout of users
+
+    :param message: Message that received a reaction
+    :return
+    """
+    for react in message.reactions:
+        if (
+            react.emoji == "🔇"
+            and not message.author.is_timed_out()
+            and not message.is_system()
+            and react.count >= config["reactions"]["timeout_count"]
+        ):
+            # FIXME
+            # we need to maintain when was the last timeout,
+            # otherwise someone could get locked out
+            duration = datetime.timedelta(
+                minutes=config["reactions"]["timeout_duration"]
+            )
+            await message.author.timeout(duration)
+            break
 
 
 @client.event
