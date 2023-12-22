@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 from random import randint, choices, uniform
 from discord import app_commands
+from datetime import datetime
+import pytz
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -150,16 +152,34 @@ async def timeout_handle(message: discord.message.Message):
 
 @client.event
 async def on_message(message: discord.Message):
+    if message.channel.id != 1187163442814128128:  # botrooms
+        return
     if message.author == client.user:
         return
     if message.content.endswith("??"):
+        pre_question = ""
+        # If the message is a reply to AI, get the original message and add it to the prompt
+        if (
+            message.reference
+            and message.reference.resolved
+            and message.reference.resolved.author == client.user
+        ):
+            ai_msg = message.reference.resolved
+            user_msg_id = message.reference.resolved.reference.message_id
+            user_msg = await message.channel.fetch_message(user_msg_id)
+            pre_question = f"""
+[User]: {user_msg.content.replace("??", "?")}
+[AI]: {ai_msg.content}"""
+
         API_URL = (
             "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
         )
-        prompt = f"""Seš expertní AI, které odpovídá na otázky ohledně různých témat.
+        now = datetime.now(pytz.timezone("Europe/Prague"))
+        prompt = f"""Aktuální datum a čas je {now.strftime("%d.%m.%Y %H:%M")}.
+Seš expertní AI, které odpovídá na otázky ohledně různých témat.
 
 [User]: Jaky pouziva https port?
-[AI]: Protokol HTTPS používá port 443.
+[AI]: Protokol HTTPS používá port 443.{pre_question}
 [User]: {message.content.replace("??", "?")}
 [AI]: """
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
