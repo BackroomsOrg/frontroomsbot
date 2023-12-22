@@ -8,12 +8,14 @@ from dotenv import load_dotenv
 
 from random import randint, choices, uniform
 from discord import app_commands
+import motor.motor_asyncio as ma
 import pytz
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD = os.getenv("GUILD_ID")
 HF_TOKEN = os.getenv("HF_TOKEN")
+DB_CONN = os.getenv("DB_CONN")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -22,6 +24,8 @@ intents.reactions = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 guild = discord.Object(id=GUILD)
+db_client = ma.AsyncIOMotorClient(DB_CONN)
+db = db_client.bot_database
 
 with open("config.toml", "r") as f:
     config = toml.load(f)
@@ -30,6 +34,15 @@ with open("config.toml", "r") as f:
 @tree.command(name="hello", description="Sends hello!", guild=guild)
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message("Hello!")
+
+
+@tree.command(name="increment", description="Makes a number go up", guild=guild)
+async def increment(interaction: discord.Interaction):
+    fld = await db.counting.find_one({"count": {"$exists": True}}) or {"count": 0}
+    nfld = fld.copy()
+    nfld["count"] += 1
+    await db.counting.replace_one(fld, nfld, upsert=True)
+    await interaction.response.send_message(str(nfld["count"]))
 
 
 @tree.command(name="roll", description="Rolls a number", guild=guild)
