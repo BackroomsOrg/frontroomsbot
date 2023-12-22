@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 from random import randint, choices, uniform
 from discord import app_commands
-from datetime import datetime
 import pytz
 
 load_dotenv()
