@@ -5,7 +5,7 @@ import httpx
 import toml
 
 from dotenv import load_dotenv
-
+from bookmarks import Bookmark
 from random import randint, choices, uniform
 from discord import app_commands
 import motor.motor_asyncio as ma
@@ -106,7 +106,13 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     match reaction:
         case "🔖":
             direct = await user.create_dm()
-            await direct.send(message.content)
+            if channel == direct:
+                return
+
+            bookmark = Bookmark(user, message, direct)
+            await bookmark.add_media()
+            await bookmark.send()
+
         case "📌":
             await pin_handle(message, channel)
         case "🔇":
