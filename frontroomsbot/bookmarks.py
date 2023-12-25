@@ -1,9 +1,9 @@
-from discord import Embed, Colour, User, Message, Attachment, DMChannel
+from discord import Embed, Colour, User, Message, DMChannel
 from datetime import datetime
-from typing import List
+
 
 class Bookmark:
-    def __init__(self, author: User, message: Message, channel:DMChannel):
+    def __init__(self, author: User, message: Message, channel: DMChannel):
         self.author = author
         self.message = message
         self.channel = channel
@@ -14,7 +14,6 @@ class Bookmark:
 
     async def send(self):
         await self.channel.send(embed=self.embed, files=self.files)
-
 
     def create_embed(self):
         embed = Embed(
@@ -42,4 +41,3 @@ class Bookmark:
         for attachment in msg_attachments:
             file = await attachment.to_file()
             self.files.append(file)
-
