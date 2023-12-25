@@ -4,7 +4,7 @@ import httpx
 
 from dotenv import load_dotenv
 from random import randint
-from bookmarks import get_bookmark
+from bookmarks import Bookmark
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -71,9 +71,10 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
             if channel == direct:
                 return
-
-            bookmark = get_bookmark(user, message)
-            await direct.send(embed=bookmark)
+            
+            bookmark = Bookmark(user, message, direct)
+            await bookmark.add_media()
+            await bookmark.send()
         case _:
             return
 
