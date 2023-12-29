@@ -12,10 +12,12 @@ class StringUtilsCog(commands.Cog):
     @app_commands.command(name="mock", description="Mocks a message")
     async def mock(self, interaction: discord.Interaction, message: str):
         result = ""
-        for i, c in enumerate(message):
+        alpha_cnt = 0
+        for c in message:
             new_c = c
             if c.isalpha():
-                new_c = c.upper() if i % 2 == 0 else c.lower()
+                new_c = c.upper() if alpha_cnt % 2 == 0 else c.lower()
+                alpha_cnt += 1
 
             result += new_c
 
