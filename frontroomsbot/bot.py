@@ -1,6 +1,5 @@
 import os
 import discord
-import toml
 
 from discord.ext import commands
 import motor.motor_asyncio as ma
@@ -19,8 +18,6 @@ class BackroomsBot(commands.Bot):
         super().__init__(*args, **kwargs)
         db_client = ma.AsyncIOMotorClient(DB_CONN)
         self.db = db_client.bot_database
-        with open("config.toml", "r") as f:
-            self.config = toml.load(f)
 
     async def on_ready(self):
         for filename in os.listdir(COGS_DIR):
