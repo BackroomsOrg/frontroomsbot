@@ -22,20 +22,24 @@ class Bookmark:
             title="Záložka!", description=self.message.jump_url, colour=Colour.purple()
         )
 
-        self.embed.set_author(name=self.author.display_name, icon_url=self.author.avatar)
+        self.embed.set_author(
+            name=self.author.display_name, icon_url=self.author.avatar
+        )
 
         time = datetime.now()
         self.embed.set_footer(text=f"Záložka vytvořena: {time}")
 
         if len(self.message.content) > 1024:
             content = self.message.content[:1025].split(" ")[0:-1]
-            if (len(content)):
+            if len(content):
                 self.split_words()
             else:
                 self.split_string()
 
         else:
-            self.embed.add_field(name="Obsah:", value=self.message.content, inline=False)
+            self.embed.add_field(
+                name="Obsah:", value=self.message.content, inline=False
+            )
 
     def split_words(self):
         content = " ".join(self.message.content[:1025].split(" ")[0:-1])
@@ -55,7 +59,6 @@ class Bookmark:
             content = self.message.content[:1024]
             self.message.content = self.message.content[1024:]
             self.embed.add_field(name="", value=content, inline=True)
-        
 
     async def add_media(self):
         if not self.message.attachments:
@@ -70,8 +73,8 @@ class Bookmark:
             file = await attachment.to_file()
             self.files.append(file)
 
+
 class BookmarkView(View):
     @button(label="Delete", style=ButtonStyle.danger, emoji="💥")
     async def delete_button(self, interaction: Interaction, button: Button):
         await interaction.message.delete()
-
