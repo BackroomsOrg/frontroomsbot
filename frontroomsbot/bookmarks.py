@@ -75,6 +75,14 @@ class Bookmark:
 
 
 class BookmarkView(View):
-    @button(label="Delete", style=ButtonStyle.danger, emoji="💥")
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @button(
+        label="Delete",
+        style=ButtonStyle.danger,
+        emoji="💥",
+        custom_id="bookmark_delete_button",
+    )
     async def delete_button(self, interaction: Interaction, button: Button):
         await interaction.message.delete()
