@@ -27,7 +27,7 @@ guild = discord.Object(id=GUILD)
 db_client = ma.AsyncIOMotorClient(DB_CONN)
 db = db_client.bot_database
 
-with open("../config.toml", "r") as f:
+with open("config.toml", "r") as f:
     config = toml.load(f)
 
 
