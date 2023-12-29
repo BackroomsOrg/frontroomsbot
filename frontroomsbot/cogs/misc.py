@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import httpx
 
 from bot import BackroomsBot
 
@@ -25,6 +26,26 @@ class MiscellaneousCog(commands.Cog):
         print(ret)
         await interaction.response.send_message("Synced!")
         print("Command tree synced")
+
+    @app_commands.command(name="nameday", description="Whose name day is it today?")
+    @app_commands.describe(date="Date to get name day for in format YYYY-MM-DD")
+    async def nameday(self, interaction: discord.Interaction, date: str | None = None):
+        uri = "https://svatkyapi.cz/api/day"
+        if date is not None:
+            uri += f"/{date}"
+
+        async with httpx.AsyncClient() as ac:
+            response = await ac.get(uri)
+
+        if response.status_code == 200:
+            json = response.json()
+            name = json["name"]
+            date_str = f"Dne {date}" if date is not None else "Dnes"
+
+            await interaction.response.send_message(f"{date_str} má svátek {name}")
+        else:
+            print(response)
+            print("Nameday failed")
 
 
 async def setup(bot: BackroomsBot) -> None:
