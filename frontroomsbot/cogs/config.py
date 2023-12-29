@@ -1,7 +1,7 @@
 from typing import Callable, Any, Union, Awaitable, overload
 from bot import BackroomsBot
 from discord.ext import commands
-from discord import app_commands, Interaction, TextStyle, AllowedMentions
+from discord import app_commands, Interaction, AllowedMentions
 import discord.ui as ui
 import asyncio
 
@@ -45,7 +45,9 @@ class Cfg:
     def __get__(self, obj: "ConfigCog", objtype=None) -> Awaitable[Any]:
         ...
 
-    def __get__(self, obj: Union["ConfigCog", None], objtype=None) -> "Cfg" | Awaitable[Any]:
+    def __get__(
+        self, obj: Union["ConfigCog", None], objtype=None
+    ) -> "Cfg" | Awaitable[Any]:
         if obj is None:
             return self
         else:
@@ -86,7 +88,7 @@ async def gen_modal(t: str, items: list[Cfg], inst: ConfigCog) -> ui.Modal:
 
     async def on_submit(self, interaction: Interaction):
         errors = []
-        new_data: Any = {'key': inst.__module__}
+        new_data: Any = {"key": inst.__module__}
         for item in items:
             raw_value = getattr(self, item.name).value
             # discord seems to offer up '' instead of None when a field is left unset
@@ -110,16 +112,20 @@ async def gen_modal(t: str, items: list[Cfg], inst: ConfigCog) -> ui.Modal:
                 "Failed to assign some values:\n" + "\n".join(error_msg),
                 allowed_mentions=AllowedMentions.none(),
             )
-        elif len(new_data) > 1: # more than just key: module
+        elif len(new_data) > 1:  # more than just key: module
             changes = [f"`{k}={v!r}`" for k, v in new_data.items()]
             send = interaction.response.send_message(
                 "Updating with new values:\n" + "\n".join(changes),
                 allowed_mentions=AllowedMentions.none(),
             )
-            db = inst.config.update_one({"key": inst.__module__}, {'$set':new_data}, upsert=True)
+            db = inst.config.update_one(
+                {"key": inst.__module__}, {"$set": new_data}, upsert=True
+            )
             await asyncio.gather(send, db)
         else:
-            await interaction.response.send_message('No changes were made', ephemeral=True)
+            await interaction.response.send_message(
+                "No changes were made", ephemeral=True
+            )
 
     methods = dict(on_submit=on_submit)
     return type("CogModal", (ui.Modal,), fields | methods, title="Configure " + t)()  # type: ignore
@@ -146,13 +152,13 @@ class ConfigCommands(commands.Cog):
             cog = next(cog for cog in cogs if cog.key == cog_module)
         except StopIteration:
             await interaction.response.send_message(
-                f"No such configurable cog.", ephemeral=True
+                "No such configurable cog.", ephemeral=True
             )
         else:
             cog_instance = self.bot.get_cog(cog.__cog_name__)
             if not cog_instance:
                 await interaction.response.send_message(
-                    f"That cog is not loaded", ephemeral=True
+                    "That cog is not loaded", ephemeral=True
                 )
             assert isinstance(
                 cog_instance, ConfigCog

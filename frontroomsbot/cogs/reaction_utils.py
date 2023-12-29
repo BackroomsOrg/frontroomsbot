@@ -8,7 +8,6 @@ from .config import ConfigCog, Cfg
 
 
 class ReactionUtilsCog(ConfigCog):
-
     pin_count = Cfg(int)
     timeout_count = Cfg(int)
     timeout_duration = Cfg(float)
@@ -80,9 +79,7 @@ class ReactionUtilsCog(ConfigCog):
                 # FIXME
                 # we need to maintain when was the last timeout,
                 # otherwise someone could get locked out
-                duration = datetime.timedelta(
-                    minutes=await self.timeout_duration
-                )
+                duration = datetime.timedelta(minutes=await self.timeout_duration)
                 await message.author.timeout(duration)
                 break
 
