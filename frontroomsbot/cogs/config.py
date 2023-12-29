@@ -144,6 +144,7 @@ class ConfigCommands(commands.Cog):
         ]
 
     @app_commands.command(name="config", description="Configure a specific cog")
+    @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.autocomplete(cog_module=cog_autocomplete)
     async def get(self, interaction: Interaction, cog_module: str):
         """/config"""
