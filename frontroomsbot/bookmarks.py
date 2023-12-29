@@ -49,7 +49,7 @@ class Bookmark:
         self.embed.add_field(name="Obsah:", value=content, inline=False)
 
         for i in range(len(self.message.content) // EMBED_MAXLEN + 1):
-            if len(self.message.content) < 1024:
+            if len(self.message.content) < EMBED_MAXLEN:
                 self.embed.add_field(name="", value=self.message.content, inline=True)
                 return
 
