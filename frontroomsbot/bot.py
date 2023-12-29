@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from bookmarks import Bookmark, BookmarkView
 from random import randint, choices, uniform
 from discord import app_commands
+from discord.ext import commands
 import motor.motor_asyncio as ma
 import pytz
 
@@ -17,12 +18,13 @@ GUILD = os.getenv("GUILD_ID")
 HF_TOKEN = os.getenv("HF_TOKEN")
 DB_CONN = os.getenv("DB_CONN")
 
+COGS_DIR = "frontroomsbot/cogs"
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.reactions = True
 
-client = discord.Client(intents=intents)
-tree = discord.app_commands.CommandTree(client)
+client = commands.Bot(command_prefix="!", intents=intents)
 guild = discord.Object(id=GUILD)
 db_client = ma.AsyncIOMotorClient(DB_CONN)
 db = db_client.bot_database
@@ -31,12 +33,12 @@ with open("config.toml", "r") as f:
     config = toml.load(f)
 
 
-@tree.command(name="hello", description="Sends hello!", guild=guild)
+@client.tree.command(name="hello", description="Sends hello!", guild=guild)
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message("Hello!")
 
 
-@tree.command(name="increment", description="Makes a number go up", guild=guild)
+@client.tree.command(name="increment", description="Makes a number go up", guild=guild)
 async def increment(interaction: discord.Interaction):
     fld = await db.counting.find_one({"count": {"$exists": True}}) or {"count": 0}
     nfld = fld.copy()
@@ -45,7 +47,7 @@ async def increment(interaction: discord.Interaction):
     await interaction.response.send_message(str(nfld["count"]))
 
 
-@tree.command(name="roll", description="Rolls a number", guild=guild)
+@client.tree.command(name="roll", description="Rolls a number", guild=guild)
 async def roll(interaction: discord.Interaction, first: int = 100, second: int = None):
     if second is None:
         result = randint(0, first)
@@ -61,7 +63,7 @@ async def roll(interaction: discord.Interaction, first: int = 100, second: int =
     await interaction.response.send_message(f"{result}")
 
 
-@tree.command(name="mock", description="Mocks a message", guild=guild)
+@client.tree.command(name="mock", description="Mocks a message", guild=guild)
 async def mock(interaction: discord.Interaction, message: str):
     result = ""
     for i, c in enumerate(message):
@@ -74,7 +76,7 @@ async def mock(interaction: discord.Interaction, message: str):
     await interaction.response.send_message(f"{result}")
 
 
-@tree.command(name="flip", description="Flips a coin", guild=guild)
+@client.tree.command(name="flip", description="Flips a coin", guild=guild)
 async def flip(interaction: discord.Interaction):
     # randint(0, 1) ? "True" : "False" <- same thing
     result = "True" if randint(0, 1) else "False"
@@ -82,7 +84,7 @@ async def flip(interaction: discord.Interaction):
 
 
 @app_commands.checks.cooldown(1, 60.0)
-@tree.command(name="kasparek", description="Zjistí jakého máš kašpárka", guild=guild)
+@client.tree.command(name="kasparek", description="Zjistí jakého máš kašpárka", guild=guild)
 async def kasparek(interaction: discord.Interaction):
     unit = choices(["cm", "mm"], weights=(95, 5), k=1)[0]
     result = round(uniform(0, 50), 2)
@@ -99,10 +101,10 @@ async def on_kasparek_error(
         await interaction.response.send_message(str(error), ephemeral=True)
 
 
-@tree.command(name="sync", description="Sync commands", guild=guild)
+@client.tree.command(name="sync", description="Sync commands", guild=guild)
 async def sync(interaction: discord.Interaction):
     print("Syncing commands")
-    ret = await tree.sync(guild=guild)
+    ret = await client.tree.sync(guild=guild)
     print(ret)
     await interaction.response.send_message("Synced!")
     print("Command tree synced")
@@ -239,6 +241,10 @@ Seš expertní AI, které odpovídá na otázky ohledně různých témat.
 @client.event
 async def on_ready():
     client.add_view(BookmarkView())
+    for filename in os.listdir(COGS_DIR):
+        if filename.endswith("py"):
+            print(filename)
+            await client.load_extension(f"{'.'.join(COGS_DIR.split('/'))}.{filename[:-3]}")
     print(f"{client.user} has connected to Discord!")
 
 
