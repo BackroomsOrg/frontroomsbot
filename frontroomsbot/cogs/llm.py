@@ -1,3 +1,4 @@
+import re
 import discord
 from discord.ext import commands
 import httpx
@@ -14,7 +15,8 @@ class LLMCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.channel.id != 1187163442814128128:  # botrooms
+        botroom_id = 1187163442814128128  # botrooms
+        if message.channel.id != botroom_id:  # botrooms
             return
         if message.author == self.bot.user:
             return
@@ -58,7 +60,7 @@ class LLMCog(commands.Cog):
                 # Filter out the prompt
                 text = raw_text.replace(prompt, "").strip()
                 # Remove new questions hallucinated by model
-                text = text.split("\n[User]:")[0]
+                text = re.split(r"\n\s*\[User\]:", text)[0]
                 allowed = discord.AllowedMentions(
                     roles=False, everyone=False, users=True, replied_user=True
                 )
