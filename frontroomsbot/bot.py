@@ -24,13 +24,27 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.reactions = True
 
-client = commands.Bot(command_prefix="!", intents=intents)
 guild = discord.Object(id=GUILD)
-db_client = ma.AsyncIOMotorClient(DB_CONN)
-db = db_client.bot_database
 
-with open("config.toml", "r") as f:
-    config = toml.load(f)
+
+class BackroomsBot(commands.Bot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        db_client = ma.AsyncIOMotorClient(DB_CONN)
+        self.db = db_client.bot_database
+        with open("config.toml", "r") as f:
+            self.config = toml.load(f)
+
+    async def on_ready(self):
+        self.add_view(BookmarkView())
+        for filename in os.listdir(COGS_DIR):
+            if filename.endswith("py"):
+                print(filename)
+                await self.load_extension(f"{'.'.join(COGS_DIR.split('/'))}.{filename[:-3]}")
+        print(f"{self.user} has connected to Discord!")
+
+
+client = BackroomsBot(command_prefix="!", intents=intents)
 
 
 @client.tree.command(name="hello", description="Sends hello!", guild=guild)
@@ -236,16 +250,6 @@ Seš expertní AI, které odpovídá na otázky ohledně různých témat.
             await message.reply(text, allowed_mentions=allowed)
         else:
             print(f"LLM failed {response.status_code}: {response.json()}")
-
-
-@client.event
-async def on_ready():
-    client.add_view(BookmarkView())
-    for filename in os.listdir(COGS_DIR):
-        if filename.endswith("py"):
-            print(filename)
-            await client.load_extension(f"{'.'.join(COGS_DIR.split('/'))}.{filename[:-3]}")
-    print(f"{client.user} has connected to Discord!")
 
 
 client.run(TOKEN)
