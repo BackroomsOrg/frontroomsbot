@@ -2,6 +2,8 @@ from discord import Embed, Colour, User, Message, DMChannel, Interaction, Button
 from discord.ui import Button, View, button
 from datetime import datetime
 
+EMBED_MAXLEN = 1024
+
 
 class Bookmark:
     def __init__(self, author: User, message: Message, channel: DMChannel):
@@ -29,8 +31,8 @@ class Bookmark:
         time = datetime.now()
         self.embed.set_footer(text=f"Záložka vytvořena: {time}")
 
-        if len(self.message.content) > 1024:
-            content = self.message.content[:1025].split(" ")[0:-1]
+        if len(self.message.content) > EMBED_MAXLEN:
+            content = self.message.content[: EMBED_MAXLEN + 1].split(" ")[0:-1]
             if len(content):
                 self.split_words()
             else:
@@ -42,22 +44,24 @@ class Bookmark:
             )
 
     def split_words(self):
-        content = " ".join(self.message.content[:1025].split(" ")[0:-1])
-        self.message.content = self.message.content[1025:]
+        content = " ".join(self.message.content[: EMBED_MAXLEN + 1].split(" ")[0:-1])
+        self.message.content = self.message.content[EMBED_MAXLEN + 1 :]
         self.embed.add_field(name="Obsah:", value=content, inline=False)
 
-        for i in range(len(self.message.content) // 1024 + 1):
-            content = " ".join(self.message.content[:1025].split(" ")[0:-1])
-            self.message.content = self.message.content[1025:]
+        for i in range(len(self.message.content) // EMBED_MAXLEN + 1):
+            content = " ".join(
+                self.message.content[: EMBED_MAXLEN + 1].split(" ")[0:-1]
+            )
+            self.message.content = self.message.content[EMBED_MAXLEN + 1 :]
             self.embed.add_field(name="", value=content, inline=True)
 
     def split_string(self):
-        content = self.message.content[:1024]
-        self.message.content = self.message.content[1024:]
+        content = self.message.content[:EMBED_MAXLEN]
+        self.message.content = self.message.content[EMBED_MAXLEN:]
         self.embed.add_field(name="Obsah:", value=content, inline=False)
-        for i in range(len(self.message.content) // 1024 + 1):
-            content = self.message.content[:1024]
-            self.message.content = self.message.content[1024:]
+        for i in range(len(self.message.content) // EMBED_MAXLEN + 1):
+            content = self.message.content[:EMBED_MAXLEN]
+            self.message.content = self.message.content[EMBED_MAXLEN:]
             self.embed.add_field(name="", value=content, inline=True)
 
     async def add_media(self):
