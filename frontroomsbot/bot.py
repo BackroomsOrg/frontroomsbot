@@ -61,6 +61,19 @@ async def roll(interaction: discord.Interaction, first: int = 100, second: int =
     await interaction.response.send_message(f"{result}")
 
 
+@tree.command(name="mock", description="Mocks a message", guild=guild)
+async def mock(interaction: discord.Interaction, message: str):
+    result = ""
+    for i, c in enumerate(message):
+        new_c = c
+        if c.isalpha():
+            new_c = c.upper() if i % 2 == 0 else c.lower()
+
+        result += new_c
+
+    await interaction.response.send_message(f"{result}")
+
+
 @tree.command(name="flip", description="Flips a coin", guild=guild)
 async def flip(interaction: discord.Interaction):
     # randint(0, 1) ? "True" : "False" <- same thing
