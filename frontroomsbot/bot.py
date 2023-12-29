@@ -5,7 +5,7 @@ import httpx
 import toml
 
 from dotenv import load_dotenv
-from bookmarks import Bookmark
+from bookmarks import Bookmark, BookmarkView
 from random import randint, choices, uniform
 from discord import app_commands
 import motor.motor_asyncio as ma
@@ -225,6 +225,7 @@ Seš expertní AI, které odpovídá na otázky ohledně různých témat.
 
 @client.event
 async def on_ready():
+    client.add_view(BookmarkView())
     print(f"{client.user} has connected to Discord!")
 
 
