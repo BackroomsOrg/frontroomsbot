@@ -45,11 +45,11 @@ class Bookmark:
 
     def split_words(self):
         content = " ".join(self.message.content[: EMBED_MAXLEN + 1].split(" ")[0:-1])
-        self.message.content = self.message.content[len(content):]
+        self.message.content = self.message.content[len(content) :]
         self.embed.add_field(name="Obsah:", value=content, inline=False)
 
         for i in range(len(self.message.content) // EMBED_MAXLEN + 1):
-            if(len(self.message.content) < 1024):
+            if len(self.message.content) < 1024:
                 self.embed.add_field(name="", value=self.message.content, inline=True)
                 return
 
