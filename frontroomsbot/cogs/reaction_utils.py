@@ -4,11 +4,17 @@ from discord.ext import commands
 
 from bot import BackroomsBot
 from .utils.bookmarks import Bookmark, BookmarkView
+from .config import ConfigCog, Cfg
 
 
-class ReactionUtilsCog(commands.Cog):
+class ReactionUtilsCog(ConfigCog):
+
+    pin_count = Cfg(int)
+    timeout_count = Cfg(int)
+    timeout_duration = Cfg(float)
+
     def __init__(self, bot: BackroomsBot) -> None:
-        self.bot = bot
+        super().__init__(bot)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -49,7 +55,7 @@ class ReactionUtilsCog(commands.Cog):
                 react.emoji == "📌"
                 and not message.pinned
                 and not message.is_system()
-                and react.count >= self.bot.config["reactions"]["pin_count"]
+                and react.count >= await self.pin_count
             ):
                 # FIXME
                 # pins = await channel.pins()
@@ -69,13 +75,13 @@ class ReactionUtilsCog(commands.Cog):
                 react.emoji == "🔇"
                 and not message.author.is_timed_out()
                 and not message.is_system()
-                and react.count >= self.bot.config["reactions"]["timeout_count"]
+                and react.count >= await self.timeout_count
             ):
                 # FIXME
                 # we need to maintain when was the last timeout,
                 # otherwise someone could get locked out
                 duration = datetime.timedelta(
-                    minutes=self.bot.config["reactions"]["timeout_duration"]
+                    minutes=await self.timeout_duration
                 )
                 await message.author.timeout(duration)
                 break
