@@ -2,14 +2,15 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from ..bot import BackroomsBot
+from bot import BackroomsBot
+
 
 class StringUtilsCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
-    
+
     @app_commands.command(name="mock", description="Mocks a message")
-    async def mock(interaction: discord.Interaction, message: str):
+    async def mock(self, interaction: discord.Interaction, message: str):
         result = ""
         for i, c in enumerate(message):
             new_c = c
@@ -21,4 +22,5 @@ class StringUtilsCog(commands.Cog):
         await interaction.response.send_message(f"{result}")
 
 
-async def setup(bot: ) -> None:
+async def setup(bot: BackroomsBot) -> None:
+    await bot.add_cog(StringUtilsCog(bot))
