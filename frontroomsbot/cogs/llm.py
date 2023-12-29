@@ -24,7 +24,7 @@ class LLMCog(commands.Cog):
             if (
                 message.reference
                 and message.reference.resolved
-                and message.reference.resolved.author == self.client.user
+                and message.reference.resolved.author == self.bot.user
             ):
                 ai_msg = message.reference.resolved
                 user_msg_id = message.reference.resolved.reference.message_id
