@@ -4,23 +4,68 @@ from discord.ext import commands
 from discord import app_commands, Interaction, AllowedMentions
 import discord.ui as ui
 import asyncio
+from contextlib import suppress
+import motor.motor_asyncio as maio
 
 _NO_VALUE = object()
+
+_CACHE: dict[str, Any] = {}
+
+
+async def _cached_get(col: maio.AsyncIOMotorCollection, key: str) -> dict[str, Any]:
+    """
+    Load a cogs configuration, or find it in the cache if it is present there
+    """
+    try:
+        return _CACHE[key]
+    except KeyError:
+        result = await col.find_one({"key": key}) or {}
+        _CACHE[key] = result
+        return result
+
+
+async def _cached_update(
+    col: maio.AsyncIOMotorCollection, key: str, values: dict[str, Any]
+):
+    """
+    Update a cogs configuration, invalidating its cache entry.
+
+    The parameter values must include the key as well
+    """
+    with suppress(KeyError):
+        # leave the race condition to mongodb
+        del _CACHE[key]
+    await col.update_one({"key": key}, {"$set": values}, upsert=True)
 
 
 class Cfg:
     def __init__(
         self, t: Callable[[Any], Any], default=_NO_VALUE, description: str = ""
     ) -> None:
+        """
+        A configuration option for a ConfigCog. A descriptor that provides an **awaitable** returning the configuration value at that point.
+
+        t is the function that parses and validates the config value to string - generally str or int. Make sure that `t(str(v)) == v`, and that `motor` will accept the result as part of a collection.
+
+        If `default` is not set, an exception will occur when no value was configured, otherwise, the default is used.
+
+        description is used as the name in the configuration modal if set.
+        """
         self.name: str
         self.t = t
         self.default = default
         self.description = description
 
     def convert(self, value):
+        """
+        Given a string value, convert it into the value for the config.
+        """
         return self.t(value)
 
     async def get(self, obj):
+        """
+        Get this config option, given the ConfigCog instance
+        """
         if self.default is _NO_VALUE:
             return self.convert((await obj._cfg())[self.name])
         else:
@@ -31,9 +76,14 @@ class Cfg:
 
     @property
     def label(self):
+        """
+        The label of the config option in the configuration modal.
+        """
         return self.description or self.name
 
     def __set_name__(self, owner, name):
+        if not issubclass(owner, ConfigCog):
+            raise RuntimeError("Make sure you only use Cfg in ConfigCog classes")
         owner.options = getattr(owner, "options", []) + [self]
         self.name = name
 
@@ -62,17 +112,23 @@ class ConfigCog(commands.Cog):
     options: list[Cfg]
 
     def __init__(self, bot: BackroomsBot):
+        """
+        Setup the ConfigCog - Make sure you user `super().__init__(bot)` if overriding this.
+        """
         self.bot = bot
         self.config = bot.db.config
 
     async def _cfg(self) -> dict[Any, Any]:
-        return await self.config.find_one({"key": self.key}) or {}
+        return await _cached_get(self.config, self.key)
 
     def __init_subclass__(cls) -> None:
         cls.key = cls.__module__
 
 
 async def gen_modal(t: str, items: list[Cfg], inst: ConfigCog) -> ui.Modal:
+    """
+    Given a ConfigCog instance, the title of the modal, and the list of configuration items it provides, construct a modal that provides a form for each of the fields, using the new values to update the configuration
+    """
     fields: dict[str, ui.TextInput] = {}
     for item in items:
         # TODO better picking of fields here
@@ -118,9 +174,7 @@ async def gen_modal(t: str, items: list[Cfg], inst: ConfigCog) -> ui.Modal:
                 "Updating with new values:\n" + "\n".join(changes),
                 allowed_mentions=AllowedMentions.none(),
             )
-            db = inst.config.update_one(
-                {"key": inst.__module__}, {"$set": new_data}, upsert=True
-            )
+            db = _cached_update(inst.config, inst.__module__, new_data)
             await asyncio.gather(send, db)
         else:
             await interaction.response.send_message(
@@ -141,13 +195,17 @@ class ConfigCommands(commands.Cog):
             app_commands.Choice(name=cog.key, value=cog.key)
             for cog in cogs
             if current in cog.key
-        ]
+        ] + [app_commands.Choice(name="purge-cache", value="purge-cache")]
 
     @app_commands.command(name="config", description="Configure a specific cog")
     @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.autocomplete(cog_module=cog_autocomplete)
     async def get(self, interaction: Interaction, cog_module: str):
         """/config"""
+        if cog_module == "purge-cache":
+            _CACHE.clear()
+            await interaction.response.send_message("Cache purged", ephemeral=True)
+            return
         cogs = ConfigCog.__subclasses__()
         try:
             cog = next(cog for cog in cogs if cog.key == cog_module)
@@ -170,4 +228,5 @@ class ConfigCommands(commands.Cog):
 
 
 async def setup(bot):
+    _CACHE.clear()
     await bot.add_cog(ConfigCommands(bot), guild=bot.guilds[0])
