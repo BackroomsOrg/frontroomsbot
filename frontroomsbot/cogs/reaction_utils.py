@@ -9,8 +9,8 @@ from ._config import ConfigCog, Cfg
 
 class ReactionUtilsCog(ConfigCog):
     pin_count = Cfg(int)
-    timeout_count = Cfg(int)
-    timeout_duration = Cfg(float)
+    timeout_count = 1  # Cfg(int)
+    timeout_duration = 1  # Cfg(float)
 
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
@@ -70,17 +70,18 @@ class ReactionUtilsCog(ConfigCog):
         :return
         """
         for react in message.reactions:
+            author = await message.guild.fetch_member(message.author.id)
             if (
                 react.emoji == "🔇"
-                and not message.author.is_timed_out()
+                and not author.is_timed_out()
                 and not message.is_system()
-                and react.count >= await self.timeout_count
+                and react.count >= self.timeout_count
             ):
                 # FIXME
                 # we need to maintain when was the last timeout,
                 # otherwise someone could get locked out
-                duration = datetime.timedelta(minutes=await self.timeout_duration)
-                await message.author.timeout(duration)
+                duration = datetime.timedelta(minutes=self.timeout_duration)
+                await author.timeout(duration)
                 break
 
 
