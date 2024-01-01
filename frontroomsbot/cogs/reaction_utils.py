@@ -4,7 +4,7 @@ from discord.ext import commands
 
 from bot import BackroomsBot
 from .utils.bookmarks import Bookmark, BookmarkView
-from .config import ConfigCog, Cfg
+from ._config import ConfigCog, Cfg
 
 
 class ReactionUtilsCog(ConfigCog):
