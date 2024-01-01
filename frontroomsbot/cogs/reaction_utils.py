@@ -75,12 +75,12 @@ class ReactionUtilsCog(ConfigCog):
                 react.emoji == "🔇"
                 and not author.is_timed_out()
                 and not message.is_system()
-                and react.count >= self.timeout_count
+                and react.count >= await self.timeout_count
             ):
                 # FIXME
                 # we need to maintain when was the last timeout,
                 # otherwise someone could get locked out
-                duration = datetime.timedelta(minutes=self.timeout_duration)
+                duration = datetime.timedelta(minutes=await self.timeout_duration)
                 await author.timeout(duration)
                 break
 
