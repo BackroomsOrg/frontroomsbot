@@ -17,5 +17,6 @@
         DISCORD_TOKEN: '{{ DISCORD_TOKEN }}'
         GUILD_ID: '{{ GUILD }}'
         HF_TOKEN: '{{ HF_TOKEN }}'
+        ERROR_WH: '{{ ERROR_WH }}'
         DB_CONN: mongodb://172.17.0.1
       pull: true

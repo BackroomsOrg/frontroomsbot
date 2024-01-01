@@ -61,3 +61,4 @@ jobs:
           --extra-vars DISCORD_TOKEN=${{secrets.BOT_TOKEN}}
           --extra-vars GUILD=${{vars.GUILD_ID}}
           --extra-vars HF_TOKEN=${{secrets.HF_TOKEN}}
+          --extra-vars ERROR_WH=${{secrets.ERROR_WH}}
