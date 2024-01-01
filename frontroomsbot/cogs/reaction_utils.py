@@ -70,9 +70,10 @@ class ReactionUtilsCog(ConfigCog):
         :return
         """
         for react in message.reactions:
+            author = await message.guild.fetch_member(message.author.id)
             if (
                 react.emoji == "🔇"
-                and not message.author.is_timed_out()
+                and not author.is_timed_out()
                 and not message.is_system()
                 and react.count >= await self.timeout_count
             ):
@@ -80,7 +81,7 @@ class ReactionUtilsCog(ConfigCog):
                 # we need to maintain when was the last timeout,
                 # otherwise someone could get locked out
                 duration = datetime.timedelta(minutes=await self.timeout_duration)
-                await message.author.timeout(duration)
+                await author.timeout(duration)
                 break
 
 
