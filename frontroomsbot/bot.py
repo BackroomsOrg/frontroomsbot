@@ -1,10 +1,13 @@
 import os
 import discord
+from traceback import print_exc
+from io import StringIO
+import httpx
 
 from discord.ext import commands
 import motor.motor_asyncio as ma
 
-from consts import TOKEN, GUILD, DB_CONN, COGS_DIR
+from consts import TOKEN, GUILD, DB_CONN, COGS_DIR, ERROR_WH
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -27,6 +30,26 @@ class BackroomsBot(commands.Bot):
                 )
 
         print(f"{self.user} has connected to Discord!")
+
+    async def on_error(self, event: str, *args, **kwargs):
+        content = StringIO()
+        print_exc(file=content)
+        print(content.getvalue())
+        data = {
+            "content": f"Bot ran into an error in event {event!r} with \n`{args=!r}`\n`{kwargs=!r}`",
+            "allowed_mentions": {"parse": []},
+            "embeds": [
+                {
+                    "title": "Traceback",
+                    "description": "```" + content.getvalue()[-3950:] + "```",
+                }
+            ],
+        }
+        async with httpx.AsyncClient() as cl:
+            # use a webhook instead of the discord connection in
+            # case the error is caused by being disconnected from discord
+            # also prevents error reporting from breaking API limits
+            await cl.post(ERROR_WH, json=data)
 
 
 client = BackroomsBot(command_prefix="!", intents=intents)
