@@ -82,14 +82,16 @@ class LLMCog(ConfigCog):
                 json = response.json()
                 try:
                     response = json["candidates"][0]["content"]["parts"][0]["text"]
-                except KeyError | IndexError:
+                except (KeyError, IndexError):
                     response = "*Did not get a response*"
                 allowed = discord.AllowedMentions(
                     roles=False, everyone=False, users=True, replied_user=True
                 )
                 await message.reply(response, allowed_mentions=allowed)
             else:
-                print(f"LLM failed {response.status_code}: {response.json()}")
+                await message.reply("API returned failure")
+                # this will show up in bot-log
+                raise RuntimeError(f"LLM failed {response.status_code}: {response.json()}")
 
 
 async def setup(bot: BackroomsBot) -> None:
