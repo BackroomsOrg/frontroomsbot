@@ -4,11 +4,14 @@ import httpx
 
 from bot import BackroomsBot
 from consts import GEMINI_TOKEN
+from ._config import ConfigCog, Cfg
 
 
-class LLMCog(commands.Cog):
+class LLMCog(ConfigCog):
+    proxy_url = Cfg(str)
+
     def __init__(self, bot: BackroomsBot) -> None:
-        self.bot = bot
+        super().__init__(bot)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -65,9 +68,8 @@ class LLMCog(commands.Cog):
                 ],
             }
             # US socks5 proxy, because API allows only some regions
-            async with httpx.AsyncClient(
-                proxy="socks5://68.71.254.6:4145", verify=False
-            ) as ac:
+            proxy = await self.proxy_url
+            async with httpx.AsyncClient(proxy=proxy, verify=False) as ac:
                 response = await ac.post(API_URL, json=data, timeout=10)
             if response.status_code == 200:
                 json = response.json()
