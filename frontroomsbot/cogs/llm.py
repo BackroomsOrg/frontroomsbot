@@ -40,7 +40,6 @@ class LLMCog(commands.Cog):
                     {"role": "model", "parts": [{"text": ai_msg.content}]}
                 )
             API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_TOKEN}"
-            # API_URL = "http://example.com"
             conversation.append(
                 {
                     "role": "user",
