@@ -9,14 +9,15 @@ from ._config import ConfigCog, Cfg
 
 class LLMCog(ConfigCog):
     proxy_url = Cfg(str)
+    botroom_id = Cfg(int, default=1187163442814128128)
+    req_timeout = Cfg(int, default=30)
 
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        botroom_id = 1187163442814128128  # botrooms
-        if message.channel.id != botroom_id:  # botrooms
+        if message.channel.id != await self.botroom_id:
             return
         if message.author == self.bot.user:
             return
@@ -70,10 +71,17 @@ class LLMCog(ConfigCog):
             # US socks5 proxy, because API allows only some regions
             proxy = await self.proxy_url
             async with httpx.AsyncClient(proxy=proxy, verify=False) as ac:
-                response = await ac.post(API_URL, json=data, timeout=10)
+                try:
+                    response = await ac.post(API_URL, json=data, timeout=await self.req_timeout)
+                except httpx.ReadTimeout:
+                    await message.reply('Response timed out')
+                    return
             if response.status_code == 200:
                 json = response.json()
-                response = json["candidates"][0]["content"]["parts"][0]["text"]
+                try:
+                    response = json["candidates"][0]["content"]["parts"][0]["text"]
+                except KeyError | IndexError:
+                    response = '*Did not get a response*'
                 allowed = discord.AllowedMentions(
                     roles=False, everyone=False, users=True, replied_user=True
                 )
