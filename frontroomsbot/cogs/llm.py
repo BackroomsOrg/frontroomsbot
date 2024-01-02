@@ -1,12 +1,9 @@
-import re
 import discord
 from discord.ext import commands
 import httpx
-import pytz
-import datetime
 
 from bot import BackroomsBot
-from consts import HF_TOKEN
+from consts import GEMINI_TOKEN
 
 
 class LLMCog(commands.Cog):
@@ -21,7 +18,7 @@ class LLMCog(commands.Cog):
         if message.author == self.bot.user:
             return
         if message.content.endswith("??"):
-            pre_question = ""
+            conversation = []
             # If the message is a reply to AI, get the original message and add it to the prompt
             if (
                 message.reference
@@ -31,40 +28,55 @@ class LLMCog(commands.Cog):
                 ai_msg = message.reference.resolved
                 user_msg_id = message.reference.resolved.reference.message_id
                 user_msg = await message.channel.fetch_message(user_msg_id)
-                pre_question = f"""
-    [User]: {user_msg.content.replace("??", "?")}
-    [AI]: {ai_msg.content}"""
-
-            API_URL = (
-                "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+                # User question
+                conversation.append(
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_msg.content.replace("??", "?")}],
+                    }
+                )
+                # AI answer
+                conversation.append(
+                    {"role": "model", "parts": [{"text": ai_msg.content}]}
+                )
+            API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_TOKEN}"
+            # API_URL = "http://example.com"
+            conversation.append(
+                {
+                    "role": "user",
+                    "parts": [{"text": message.content.replace("??", "?")}],
+                }
             )
-            now = datetime.datetime.now(pytz.timezone("Europe/Prague"))
-            prompt = f"""Aktuální datum a čas je {now.strftime("%d.%m.%Y %H:%M")}.
-    Seš expertní AI, které odpovídá na otázky ohledně různých témat.
-
-    [User]: Jaky pouziva https port?
-    [AI]: Protokol HTTPS používá port 443.{pre_question}
-    [User]: {message.content.replace("??", "?")}
-    [AI]: """
-            headers = {"Authorization": f"Bearer {HF_TOKEN}"}
             data = {
-                "inputs": prompt,
-                "max_new_tokens": 250,  # This is maximum HF API allows
-                "options": {"wait_for_model": True},  # Wait if model is not ready
+                "contents": conversation,
+                "safetySettings": [  # Maximum power
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_NONE",
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_NONE",
+                    },
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_NONE",
+                    },
+                ],
             }
-            async with httpx.AsyncClient() as ac:
-                response = await ac.post(API_URL, headers=headers, json=data)
+            # US socks5 proxy, because API allows only some regions
+            async with httpx.AsyncClient(
+                proxy="socks5://68.71.254.6:4145", verify=False
+            ) as ac:
+                response = await ac.post(API_URL, json=data, timeout=10)
             if response.status_code == 200:
                 json = response.json()
-                raw_text = json[0]["generated_text"]
-                # Filter out the prompt
-                text = raw_text.replace(prompt, "").strip()
-                # Remove new questions hallucinated by model
-                text = re.split(r"\n\s*\[User\]:", text)[0]
+                response = json["candidates"][0]["content"]["parts"][0]["text"]
                 allowed = discord.AllowedMentions(
                     roles=False, everyone=False, users=True, replied_user=True
                 )
-                await message.reply(text, allowed_mentions=allowed)
+                await message.reply(response, allowed_mentions=allowed)
             else:
                 print(f"LLM failed {response.status_code}: {response.json()}")
 
