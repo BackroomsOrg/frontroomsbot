@@ -72,16 +72,18 @@ class LLMCog(ConfigCog):
             proxy = await self.proxy_url
             async with httpx.AsyncClient(proxy=proxy, verify=False) as ac:
                 try:
-                    response = await ac.post(API_URL, json=data, timeout=await self.req_timeout)
+                    response = await ac.post(
+                        API_URL, json=data, timeout=await self.req_timeout
+                    )
                 except httpx.ReadTimeout:
-                    await message.reply('Response timed out')
+                    await message.reply("Response timed out")
                     return
             if response.status_code == 200:
                 json = response.json()
                 try:
                     response = json["candidates"][0]["content"]["parts"][0]["text"]
                 except KeyError | IndexError:
-                    response = '*Did not get a response*'
+                    response = "*Did not get a response*"
                 allowed = discord.AllowedMentions(
                     roles=False, everyone=False, users=True, replied_user=True
                 )
