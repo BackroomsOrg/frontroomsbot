@@ -18,5 +18,6 @@
         GUILD_ID: '{{ GUILD }}'
         HF_TOKEN: '{{ HF_TOKEN }}'
         ERROR_WH: '{{ ERROR_WH }}'
+        GEMINI_TOKEN: '{{ GEMINI_TOKEN }}'
         DB_CONN: mongodb://172.17.0.1
       pull: true

@@ -62,3 +62,4 @@ jobs:
           --extra-vars GUILD=${{vars.GUILD_ID}}
           --extra-vars HF_TOKEN=${{secrets.HF_TOKEN}}
           --extra-vars ERROR_WH=${{secrets.ERROR_WH}}
+          --extra-vars GEMINI_TOKEN=${{secrets.GEMINI_TOKEN}}
