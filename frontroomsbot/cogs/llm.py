@@ -87,11 +87,16 @@ class LLMCog(ConfigCog):
                 allowed = discord.AllowedMentions(
                     roles=False, everyone=False, users=True, replied_user=True
                 )
-                await message.reply(response, allowed_mentions=allowed)
+                # Split message into chunks of 2000 characters
+                chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
+                for chunk in chunks:
+                    await message.reply(chunk, allowed_mentions=allowed)
             else:
                 await message.reply("API returned failure")
                 # this will show up in bot-log
-                raise RuntimeError(f"LLM failed {response.status_code}: {response.json()}")
+                raise RuntimeError(
+                    f"LLM failed {response.status_code}: {response.json()}"
+                )
 
 
 async def setup(bot: BackroomsBot) -> None:
