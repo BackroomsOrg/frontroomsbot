@@ -76,10 +76,10 @@ class LLMCog(ConfigCog):
                         API_URL, json=data, timeout=await self.req_timeout
                     )
                 except httpx.ReadTimeout:
-                    await message.reply("Response timed out")
+                    await message.reply("*Response timed out*")
                     return
+            json = response.json()
             if response.status_code == 200:
-                json = response.json()
                 try:
                     response = json["candidates"][0]["content"]["parts"][0]["text"]
                 except (KeyError, IndexError):
@@ -91,12 +91,13 @@ class LLMCog(ConfigCog):
                 chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
                 for chunk in chunks:
                     await message.reply(chunk, allowed_mentions=allowed)
+            elif response.status_code == 500:
+                text = json["error"]["message"]
+                await message.reply(f"*{text}*")
             else:
-                await message.reply("API returned failure")
+                await message.reply("*Unknown Error*")
                 # this will show up in bot-log
-                raise RuntimeError(
-                    f"LLM failed {response.status_code}: {response.json()}"
-                )
+                raise RuntimeError(f"LLM failed {response.status_code}: {json}")
 
 
 async def setup(bot: BackroomsBot) -> None:
