@@ -36,6 +36,8 @@ jobs:
         platforms: linux/arm64/v8
         tags: |
           ghcr.io/backroomsorg/bot:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
   deploy:
     needs: build
     runs-on: ubuntu-latest
