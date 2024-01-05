@@ -87,4 +87,4 @@ class ReactionUtilsCog(ConfigCog):
 
 async def setup(bot: BackroomsBot) -> None:
     bot.add_view(BookmarkView())
-    await bot.add_cog(ReactionUtilsCog(bot), guild=bot.guilds[0])
+    await bot.add_cog(ReactionUtilsCog(bot), guild=bot.backrooms)

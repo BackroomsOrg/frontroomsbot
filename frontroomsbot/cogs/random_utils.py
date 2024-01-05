@@ -51,4 +51,4 @@ class RandomUtilsCog(commands.Cog):
 
 
 async def setup(bot: BackroomsBot) -> None:
-    await bot.add_cog(RandomUtilsCog(bot), guild=bot.guilds[0])
+    await bot.add_cog(RandomUtilsCog(bot), guild=bot.backrooms)

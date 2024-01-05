@@ -21,15 +21,14 @@ class BackroomsBot(commands.Bot):
         super().__init__(*args, **kwargs)
         db_client = ma.AsyncIOMotorClient(DB_CONN)
         self.db = db_client.bot_database
+        self.backrooms = guild
 
-    async def on_ready(self):
+    async def setup_hook(self):
         for filename in os.listdir(COGS_DIR):
             if filename.endswith("py") and not filename.startswith("_"):
                 await self.load_extension(
                     f"{'.'.join(COGS_DIR.split('/'))}.{filename[:-3]}"
                 )
-
-        print(f"{self.user} has connected to Discord!")
 
     async def on_error(self, event: str, *args, **kwargs):
         content = StringIO()

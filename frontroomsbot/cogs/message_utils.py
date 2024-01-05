@@ -25,4 +25,4 @@ class StringUtilsCog(commands.Cog):
 
 
 async def setup(bot: BackroomsBot) -> None:
-    await bot.add_cog(StringUtilsCog(bot), guild=bot.guilds[0])
+    await bot.add_cog(StringUtilsCog(bot), guild=bot.backrooms)
