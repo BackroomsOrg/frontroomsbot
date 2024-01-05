@@ -101,4 +101,4 @@ class LLMCog(ConfigCog):
 
 
 async def setup(bot: BackroomsBot) -> None:
-    await bot.add_cog(LLMCog(bot), guild=bot.guilds[0])
+    await bot.add_cog(LLMCog(bot), guild=bot.backrooms)

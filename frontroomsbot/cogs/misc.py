@@ -49,4 +49,4 @@ class MiscellaneousCog(commands.Cog):
 
 
 async def setup(bot: BackroomsBot) -> None:
-    await bot.add_cog(MiscellaneousCog(bot), guild=bot.guilds[0])
+    await bot.add_cog(MiscellaneousCog(bot), guild=bot.backrooms)
