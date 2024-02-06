@@ -48,4 +48,4 @@ class ConfigCommands(commands.Cog):
 
 async def setup(bot):
     clear_cache()
-    await bot.add_cog(ConfigCommands(bot), guild=bot.guilds[0])
+    await bot.add_cog(ConfigCommands(bot), guild=bot.backrooms)
