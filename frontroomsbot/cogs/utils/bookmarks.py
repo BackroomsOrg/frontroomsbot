@@ -1,6 +1,5 @@
 from discord import Embed, Colour, User, Message, DMChannel, Interaction, ButtonStyle
 from discord.ui import Button, View, button
-from discord import Embed
 from datetime import datetime
 
 EMBED_MAXLEN = 1024
