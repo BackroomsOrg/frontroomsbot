@@ -17,7 +17,7 @@ class WebSocketClient:
                 message = await ws.recv()
                 parsedMessage = json.loads(message)
                 
-                channel = self.bot.get_channel(1193344830382813254)
+                channel = self.bot.get_channel(1206401669265625108)
                 embed = Embed(title="New post!", description=parsedMessage["description"], colour=Colour.blue())
                 embed.add_field(name="Price:", value=str(parsedMessage["price"]) + "Kč", inline=False)
                 embed.add_field(name="StoreId:", value=str(parsedMessage["store"]), inline=False)
