@@ -9,7 +9,7 @@ from ._config import ConfigCog, Cfg
 
 class LLMCog(ConfigCog):
     proxy_url = Cfg(str)
-    botroom_id = Cfg(int, default=1187163442814128128)
+    botroom_id = Cfg(int, default=1127247449774358618)
     req_timeout = Cfg(int, default=30)
 
     def __init__(self, bot: BackroomsBot) -> None:
