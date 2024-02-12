@@ -54,7 +54,9 @@ class SuperkaufCog(ConfigCog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.bot.loop.create_task(self.websocket_client.connect(await self.superkaufroom_id))
+        self.bot.loop.create_task(
+            self.websocket_client.connect(await self.superkaufroom_id)
+        )
 
 
 async def setup(bot: BackroomsBot) -> None:
