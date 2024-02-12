@@ -2,22 +2,25 @@ from discord.ext import commands
 import websockets
 from discord import Embed, Colour
 import json
+from ._config import  ConfigCog, Cfg
 
 
 from bot import BackroomsBot
 
 class WebSocketClient:
-    def __init__(self, bot, websocket_url):
+
+    def __init__(self, bot, websocket_url, channel_id):
         self.bot = bot
         self.websocket_url = websocket_url
+        self.channel_id = channel_id
 
     async def connect(self):
         async with websockets.connect(self.websocket_url) as ws:
             while True:
-                message = await ws.recv()
-                parsedMessage = json.loads(message)
+                parsedMessage = json.loads(await ws.recv())
                 
-                channel = self.bot.get_channel(1206401669265625108)
+                channel = self.bot.get_channel(self.channel_id)
+
                 embed = Embed(title="New post!", description=parsedMessage["description"], colour=Colour.blue())
                 embed.add_field(name="Price:", value=str(parsedMessage["price"]) + "Kč", inline=False)
                 embed.add_field(name="StoreId:", value=str(parsedMessage["store"]), inline=False)
@@ -27,12 +30,16 @@ class WebSocketClient:
                 await channel.send(embed=embed)
 
 
-class SuperkaufCog(commands.Cog):
-    def __init__(self, bot: BackroomsBot) -> None:
+class SuperkaufCog(ConfigCog):
+    superkaufroom_id = Cfg(int)
+
+    async def __init__(self, bot: BackroomsBot) -> None:
+        super().__init__(bot)
         self.bot = bot
         websocket_url = "wss://superkauf-updates.krejzac.cz"
-        self.websocket_url = websocket_url
-        self.websocket_client = WebSocketClient(bot, websocket_url)
+        channel_id = await self.superkaufroom_id
+
+        self.websocket_client = WebSocketClient(bot, websocket_url, channel_id)
 
     @commands.Cog.listener()
     async def on_ready(self):
