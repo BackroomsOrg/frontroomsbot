@@ -36,7 +36,9 @@ class WebSocketClient:
                             inline=False,
                         )
                         embed.add_field(
-                            name="Store:", value=str(parsedMessage["store_name"]), inline=False
+                            name="Store:",
+                            value=str(parsedMessage["store_name"]),
+                            inline=False,
                         )
                         embed.set_image(url=parsedMessage["image"])
                         embed.set_footer(
@@ -48,8 +50,11 @@ class WebSocketClient:
 
             except websockets.ConnectionClosed:
                 reconnect_timeout *= 2
-                print(f"Connection closed. Reconnecting in {reconnect_timeout} seconds.")
-                await asyncio.sleep(reconnect_timeout) 
+                print(
+                    f"Connection closed. Reconnecting in {reconnect_timeout} seconds."
+                )
+                await asyncio.sleep(reconnect_timeout)
+
 
 class SuperkaufCog(ConfigCog):
     superkaufroom_id = Cfg(int)
