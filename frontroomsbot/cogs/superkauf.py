@@ -15,10 +15,12 @@ class WebSocketClient:
         self.websocket_url = websocket_url
 
     async def connect(self, channel_id):
+        reconnect_timeout = 1
         while True:
             try:
                 async with websockets.connect(self.websocket_url) as ws:
                     while True:
+                        reconnect_timeout = 1
                         parsedMessage = json.loads(await ws.recv())
 
                         channel = self.bot.get_channel(channel_id)
@@ -45,8 +47,9 @@ class WebSocketClient:
                         await channel.send(embed=embed)
 
             except websockets.ConnectionClosed:
-                print("Connection closed. Reconnecting...")
-                await asyncio.sleep(5) 
+                reconnect_timeout *= 2
+                print(f"Connection closed. Reconnecting in {reconnect_timeout} seconds.")
+                await asyncio.sleep(reconnect_timeout) 
 
 class SuperkaufCog(ConfigCog):
     superkaufroom_id = Cfg(int)
