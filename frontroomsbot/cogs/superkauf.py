@@ -3,6 +3,7 @@ import websockets
 from discord import Embed, Colour
 import json
 from ._config import ConfigCog, Cfg
+import asyncio
 
 
 from bot import BackroomsBot
@@ -14,33 +15,38 @@ class WebSocketClient:
         self.websocket_url = websocket_url
 
     async def connect(self, channel_id):
-        async with websockets.connect(self.websocket_url) as ws:
-            while True:
-                parsedMessage = json.loads(await ws.recv())
+        while True:
+            try:
+                async with websockets.connect(self.websocket_url) as ws:
+                    while True:
+                        parsedMessage = json.loads(await ws.recv())
 
-                channel = self.bot.get_channel(channel_id)
+                        channel = self.bot.get_channel(channel_id)
 
-                embed = Embed(
-                    title="New post!",
-                    description=parsedMessage["description"],
-                    colour=Colour.blue(),
-                )
-                embed.add_field(
-                    name="Price:",
-                    value=str(parsedMessage["price"]) + "Kč",
-                    inline=False,
-                )
-                embed.add_field(
-                    name="StoreId:", value=str(parsedMessage["store"]), inline=False
-                )
-                embed.set_image(url=parsedMessage["image"])
-                embed.set_footer(
-                    text="Powered by TurboDeal",
-                    icon_url="https://wwrhodyufftnwdbafguo.supabase.co/storage/v1/object/public/profile_pics/kauf_logo.png",
-                )
+                        embed = Embed(
+                            title="New post!",
+                            description=parsedMessage["description"],
+                            colour=Colour.blue(),
+                        )
+                        embed.add_field(
+                            name="Price:",
+                            value=str(parsedMessage["price"]) + "Kč",
+                            inline=False,
+                        )
+                        embed.add_field(
+                            name="Store:", value=str(parsedMessage["store_name"]), inline=False
+                        )
+                        embed.set_image(url=parsedMessage["image"])
+                        embed.set_footer(
+                            text="Powered by TurboDeal",
+                            icon_url="https://wwrhodyufftnwdbafguo.supabase.co/storage/v1/object/public/profile_pics/kauf_logo.png",
+                        )
 
-                await channel.send(embed=embed)
+                        await channel.send(embed=embed)
 
+            except websockets.ConnectionClosed:
+                print("Connection closed. Reconnecting...")
+                await asyncio.sleep(5) 
 
 class SuperkaufCog(ConfigCog):
     superkaufroom_id = Cfg(int)
