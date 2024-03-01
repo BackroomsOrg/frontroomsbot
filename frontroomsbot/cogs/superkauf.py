@@ -50,7 +50,7 @@ class WebSocketClient:
                             text=user_data["username"],
                             icon_url=user_data["profile_picture"],
                         )
-                        
+
                         await channel.send(embed=embed)
 
             except websockets.ConnectionClosed:
