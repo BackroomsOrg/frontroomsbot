@@ -22,30 +22,35 @@ class WebSocketClient:
                     while True:
                         reconnect_timeout = 1
                         parsedMessage = json.loads(await ws.recv())
+                        user_data = parsedMessage["user"]
+                        post_data = parsedMessage["post"]
+                        store_data = parsedMessage["store"]
 
                         channel = self.bot.get_channel(channel_id)
 
                         embed = Embed(
-                            title="New post!",
-                            description=parsedMessage["description"],
-                            colour=Colour.blue(),
+                            description=post_data["description"],
+                            colour=Colour.from_rgb(113, 93, 242),
                         )
                         embed.add_field(
-                            name="Price:",
-                            value=str(parsedMessage["price"]) + "Kč",
-                            inline=False,
+                            name="Price",
+                            value=str(post_data["price"]) + "Kč",
+                            inline=True,
                         )
                         embed.add_field(
-                            name="Store:",
-                            value=str(parsedMessage["store_name"]),
-                            inline=False,
+                            name="Store", value=str(store_data["name"]), inline=True
                         )
-                        embed.set_image(url=parsedMessage["image"])
+                        embed.set_author(
+                            name="SuperKauf",
+                            icon_url="https://storage.googleapis.com/superkauf/logos/logo1.png",
+                            url="https://superkauf.krejzac.cz",
+                        )
+                        embed.set_image(url=post_data["image"])
                         embed.set_footer(
-                            text="Powered by TurboDeal",
-                            icon_url="https://wwrhodyufftnwdbafguo.supabase.co/storage/v1/object/public/profile_pics/kauf_logo.png",
+                            text=user_data["username"],
+                            icon_url=user_data["profile_picture"],
                         )
-
+                        
                         await channel.send(embed=embed)
 
             except websockets.ConnectionClosed:
