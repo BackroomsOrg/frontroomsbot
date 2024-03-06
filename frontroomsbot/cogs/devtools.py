@@ -1,7 +1,5 @@
 from bot import BackroomsBot
 from discord.ext import commands
-from consts import ERROR_WH
-import httpx
 from pathlib import Path
 import time
 
@@ -41,12 +39,9 @@ class DevTools(commands.Cog):
             git_revision = (DOT_GIT / "refs/heads/master").read_text()
         except IOError:
             git_revision = "git revision not found"
-        data = {
-            "content": f"{self.bot.user} is up at <t:{int(time.time())}:T> using git: `{git_revision.strip()}`.",
-            "allowed_mentions": {"parse": []},
-        }
-        async with httpx.AsyncClient() as cl:
-            await cl.post(ERROR_WH, json=data)
+        await self.bot.send_wh(
+            f"{self.bot.user} is up at <t:{int(time.time())}:T> using git: `{git_revision.strip()}`."
+        )
 
 
 async def setup(bot):

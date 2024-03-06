@@ -12,7 +12,10 @@ class RandomUtilsCog(commands.Cog):
 
     @app_commands.command(name="roll", description="Rolls a number")
     async def roll(
-        self, interaction: discord.Interaction, first: int = 100, second: int = None
+        self,
+        interaction: discord.Interaction,
+        first: int = 100,
+        second: int | None = None,
     ):
         if second is None:
             result = randint(0, first)

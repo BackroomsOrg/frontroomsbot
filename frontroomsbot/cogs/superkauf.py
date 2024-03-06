@@ -70,12 +70,31 @@ class SuperkaufCog(ConfigCog):
         websocket_url = "wss://superkauf-updates.krejzac.cz"
 
         self.websocket_client = WebSocketClient(bot, websocket_url)
+        self.ready = False
+        self.task = None
+
+    async def connect(self):
+        self.task = self.bot.loop.create_task(
+            self.websocket_client.connect(await self.superkaufroom_id)
+        )
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.bot.loop.create_task(
-            self.websocket_client.connect(await self.superkaufroom_id)
-        )
+        self.ready = True
+        if not self.task:
+            await self.connect()
+
+    async def cog_load(self):
+        if self.ready and not self.task:
+            await self.connect()
+
+    async def cog_unload(self) -> None:
+        if self.task and self.task.cancel():
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+        self.task = None
 
 
 async def setup(bot: BackroomsBot) -> None:

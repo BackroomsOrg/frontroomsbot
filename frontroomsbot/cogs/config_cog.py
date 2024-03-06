@@ -1,7 +1,7 @@
 from bot import BackroomsBot
 from discord.ext import commands
 from discord import app_commands, Interaction
-from ._config import ConfigCog, clear_cache, gen_modal
+from ._config import ConfigCog, clear_cache, gen_modal, get_unloaded_cog
 
 
 class ConfigCommands(commands.Cog):
@@ -35,15 +35,17 @@ class ConfigCommands(commands.Cog):
         else:
             cog_instance = self.bot.get_cog(cog.__cog_name__)
             if not cog_instance:
-                await interaction.response.send_message(
-                    "That cog is not loaded", ephemeral=True
+                cog_instance = get_unloaded_cog(cog_module)
+                await interaction.response.send_modal(
+                    await gen_modal(cog_module, cog.options, cog_instance)
                 )
-            assert isinstance(
-                cog_instance, ConfigCog
-            ), "Found a non-configurable cog, perhaps two cogs live in the same module"
-            await interaction.response.send_modal(
-                await gen_modal(cog_module, cog.options, cog_instance)
-            )
+            else:
+                assert isinstance(
+                    cog_instance, ConfigCog
+                ), f"Found a non-configurable cog, perhaps two cogs live in the same module - {cog_instance!r}"
+                await interaction.response.send_modal(
+                    await gen_modal(cog_module, cog.options, cog_instance)
+                )
 
 
 async def setup(bot):
