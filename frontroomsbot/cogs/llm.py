@@ -1,3 +1,5 @@
+import sys
+import traceback
 import discord
 from discord.ext import commands
 import httpx
@@ -7,6 +9,10 @@ from consts import GEMINI_TOKEN
 from ._config import ConfigCog, Cfg
 
 
+class LLMError(Exception):
+    pass
+
+
 class LLMCog(ConfigCog):
     proxy_url = Cfg(str)
     botroom_id = Cfg(int, default=1187163442814128128)
@@ -14,6 +20,15 @@ class LLMCog(ConfigCog):
 
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
+
+    @commands.Cog.listener()
+    async def on_error(self, event: str, *args, **kwargs):
+        # since this cog is flaky, avoid spamming the error webhook with network issues
+        exc_t, _, _ = sys.exc_info()
+        assert exc_t
+        traceback.print_exc()
+        if not issubclass(exc_t, (httpx.RemoteProtocolError, LLMError)):
+            raise
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -96,8 +111,7 @@ class LLMCog(ConfigCog):
                 await message.reply(f"*{text}*")
             else:
                 await message.reply("*Unknown Error*")
-                # this will show up in bot-log
-                raise RuntimeError(f"LLM failed {response.status_code}: {json}")
+                raise LLMError(f"LLM failed {response.status_code}: {json}")
 
 
 async def setup(bot: BackroomsBot) -> None:

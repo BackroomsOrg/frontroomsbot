@@ -6,10 +6,16 @@ import discord.ui as ui
 import asyncio
 from contextlib import suppress
 import motor.motor_asyncio as maio
+import pymongo.errors
 
 _NO_VALUE = object()
 
 _CACHE: dict[str, Any] = {}
+_UNLOADED_COGS: dict[str, "ConfigCog"] = {}
+
+
+def get_unloaded_cog(key: str) -> "ConfigCog":
+    return _UNLOADED_COGS[key]
 
 
 def clear_cache():
@@ -66,12 +72,19 @@ class Cfg:
         """
         return self.t(value)
 
-    async def get(self, obj):
+    async def get(self, obj: "ConfigCog"):
         """
         Get this config option, given the ConfigCog instance
         """
         if self.default is _NO_VALUE:
-            return self.convert((await obj._cfg())[self.name])
+            try:
+                return self.convert((await obj._cfg())[self.name])
+            except KeyError:
+                assert obj.__cog_name__ is not None
+                # remove a cog if it is missing a mandatory config option
+                _UNLOADED_COGS[obj.__module__] = obj
+                await obj.bot.remove_cog(obj.__cog_name__)
+                raise
         else:
             if (value := (await obj._cfg()).get(self.name, _NO_VALUE)) is _NO_VALUE:
                 return self.default
@@ -123,7 +136,14 @@ class ConfigCog(commands.Cog):
         self.config = bot.db.config
 
     async def _cfg(self) -> dict[Any, Any]:
-        return await _cached_get(self.config, self.key)
+        try:
+            return await _cached_get(self.config, self.key)
+        except pymongo.errors.OperationFailure as e:
+            assert self.__cog_name__ is not None
+            _UNLOADED_COGS[self.__module__] = self
+            await self.bot.remove_cog(self.__cog_name__)
+            # keep the traceback managable
+            raise e from None
 
     def __init_subclass__(cls) -> None:
         cls.key = cls.__module__
@@ -135,11 +155,11 @@ async def gen_modal(t: str, items: list[Cfg], inst: ConfigCog) -> ui.Modal:
     """
     fields: dict[str, ui.TextInput] = {}
     for item in items:
-        # TODO better picking of fields here
         try:
             value = str(await item.get(inst))
         except KeyError:
             value = None
+        # TODO better picking of fields here
         fields[item.name] = ui.TextInput(
             label=item.label,
             default=value,
