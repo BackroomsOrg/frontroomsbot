@@ -29,7 +29,10 @@ class LLMCog(ConfigCog):
         API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_TOKEN}"
         # Convert conversation to the format required by the API
         conversation = [
-            {"role": msg["role"], "parts": [{"text": msg["content"]}]}
+            {
+                "role": "model" if msg["role"] == "assistant" else "user",
+                "parts": [{"text": msg["content"]}],
+            }
             for msg in conversation
         ]
         data = {
@@ -116,7 +119,9 @@ class LLMCog(ConfigCog):
                         {"role": "user", "content": replace_suffix(user_msg, suffix)}
                     )
                     # AI answer
-                    conversation.append({"role": "model", "content": ai_msg.content})
+                    conversation.append(
+                        {"role": "assistant", "content": ai_msg.content}
+                    )
 
                 conversation.append(
                     {"role": "user", "content": replace_suffix(message, suffix)}
