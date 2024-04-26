@@ -3,8 +3,18 @@ from discord.ext import commands
 import httpx
 
 from bot import BackroomsBot
-from consts import GEMINI_TOKEN
+from consts import GEMINI_TOKEN, GROQ_TOKEN
 from ._config import ConfigCog, Cfg
+
+
+def replace_suffix(message: discord.Message, suffix: str) -> str:
+    return message.content[: -len(suffix)] + "?"
+
+
+class TolerableLLMError(Exception):
+    """An error that won't be logged, only sent to the user"""
+
+    pass
 
 
 class LLMCog(ConfigCog):
@@ -15,89 +25,122 @@ class LLMCog(ConfigCog):
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
 
+    async def handle_google_gemini(self, conversation: list[dict]):
+        API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_TOKEN}"
+        # Convert conversation to the format required by the API
+        conversation = [
+            {"role": msg["role"], "parts": [{"text": msg.content}]}
+            for msg in conversation
+        ]
+        data = {
+            "contents": conversation,
+            "safetySettings": [  # Maximum power
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_NONE",
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_NONE",
+                },
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_NONE",
+                },
+            ],
+        }
+        # US socks5 proxy, because API allows only some regions
+        proxy = await self.proxy_url
+        async with httpx.AsyncClient(proxy=proxy, verify=False) as ac:
+            response = await ac.post(API_URL, json=data, timeout=await self.req_timeout)
+        json = response.json()
+        if response.status_code == 200:
+            return json["candidates"][0]["content"]["parts"][0]["text"]
+        elif response.status_code == 500:
+            raise TolerableLLMError(json["error"]["message"])
+        else:
+            raise RuntimeError(f"Gemini failed {response.status_code}: {json}")
+
+    async def handle_groq(self, conversation: list[dict]):
+        API_URL = "https://api.groq.com/openai/v1/chat/completions"
+        data = {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Jsi digitální asistent, který odpovídá v češtině",
+                },
+            ]
+            + conversation,
+            "model": "llama3-70b-8192",
+        }
+        headers = {
+            "Authorization": f"Bearer {GROQ_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient() as ac:
+            response = await ac.post(
+                API_URL, json=data, headers=headers, timeout=await self.req_timeout
+            )
+        json = response.json()
+        if response.status_code == 200:
+            return json["choices"][0]["message"]["content"]
+        else:
+            raise RuntimeError(f"Groq failed {response.status_code}: {json}")
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        suffix_map = {
+            "?!": self.handle_google_gemini,
+            "??": self.handle_groq,
+        }
+
         if message.channel.id != await self.botroom_id:
             return
         if message.author == self.bot.user:
             return
-        if message.content.endswith("??"):
-            conversation = []
-            # If the message is a reply to AI, get the original message and add it to the prompt
-            if (
-                message.reference
-                and message.reference.resolved
-                and message.reference.resolved.author == self.bot.user
-            ):
-                ai_msg = message.reference.resolved
-                user_msg_id = message.reference.resolved.reference.message_id
-                user_msg = await message.channel.fetch_message(user_msg_id)
-                # User question
-                conversation.append(
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_msg.content.replace("??", "?")}],
-                    }
-                )
-                # AI answer
-                conversation.append(
-                    {"role": "model", "parts": [{"text": ai_msg.content}]}
-                )
-            API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_TOKEN}"
-            conversation.append(
-                {
-                    "role": "user",
-                    "parts": [{"text": message.content.replace("??", "?")}],
-                }
-            )
-            data = {
-                "contents": conversation,
-                "safetySettings": [  # Maximum power
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "threshold": "BLOCK_NONE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "threshold": "BLOCK_NONE",
-                    },
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "threshold": "BLOCK_NONE",
-                    },
-                ],
-            }
-            # US socks5 proxy, because API allows only some regions
-            proxy = await self.proxy_url
-            async with httpx.AsyncClient(proxy=proxy, verify=False) as ac:
-                try:
-                    response = await ac.post(
-                        API_URL, json=data, timeout=await self.req_timeout
+        for suffix, handler in suffix_map.items():
+            if message.content.endswith(suffix):
+                conversation = []
+                # If the message is a reply to AI, get the original message and add it to the prompt
+                if (
+                    message.reference
+                    and message.reference.resolved
+                    and message.reference.resolved.author == self.bot.user
+                ):
+                    ai_msg = message.reference.resolved
+                    user_msg_id = message.reference.resolved.reference.message_id
+                    user_msg = await message.channel.fetch_message(user_msg_id)
+                    # User question
+                    conversation.append(
+                        {"role": "user", "content": replace_suffix(user_msg, suffix)}
                     )
+                    # AI answer
+                    conversation.append({"role": "model", "content": ai_msg.content})
+
+                conversation.append(
+                    {"role": "user", "content": replace_suffix(message, suffix)}
+                )
+
+                try:
+                    response = await handler(conversation)
+                    allowed = discord.AllowedMentions(
+                        roles=False, everyone=False, users=True, replied_user=True
+                    )
+                    chunks = [
+                        response[i : i + 2000] for i in range(0, len(response), 2000)
+                    ]
+                    for chunk in chunks:
+                        await message.reply(chunk, allowed_mentions=allowed)
                 except httpx.ReadTimeout:
                     await message.reply("*Response timed out*")
-                    return
-            json = response.json()
-            if response.status_code == 200:
-                try:
-                    response = json["candidates"][0]["content"]["parts"][0]["text"]
                 except (KeyError, IndexError):
-                    response = "*Did not get a response*"
-                allowed = discord.AllowedMentions(
-                    roles=False, everyone=False, users=True, replied_user=True
-                )
-                # Split message into chunks of 2000 characters
-                chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
-                for chunk in chunks:
-                    await message.reply(chunk, allowed_mentions=allowed)
-            elif response.status_code == 500:
-                text = json["error"]["message"]
-                await message.reply(f"*{text}*")
-            else:
-                await message.reply("*Unknown Error*")
-                # this will show up in bot-log
-                raise RuntimeError(f"LLM failed {response.status_code}: {json}")
+                    await message.reply("*Did not get a response*")
+                except TolerableLLMError as e:
+                    await message.reply(f"*{str(e)}*")
+                except RuntimeError as e:
+                    await message.reply(f"*{str(e)}*")
+                    raise RuntimeError(e)
 
 
 async def setup(bot: BackroomsBot) -> None:
