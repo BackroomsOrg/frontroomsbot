@@ -91,8 +91,8 @@ class LLMCog(ConfigCog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         suffix_map = {
-            "?!": self.handle_google_gemini,
-            "??": self.handle_groq,
+            "??": self.handle_google_gemini,
+            "?!": self.handle_groq,
         }
 
         if message.channel.id != await self.botroom_id:
