@@ -29,7 +29,7 @@ class LLMCog(ConfigCog):
         API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_TOKEN}"
         # Convert conversation to the format required by the API
         conversation = [
-            {"role": msg["role"], "parts": [{"text": msg.content}]}
+            {"role": msg["role"], "parts": [{"text": msg["content"]}]}
             for msg in conversation
         ]
         data = {
