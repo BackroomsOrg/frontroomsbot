@@ -7,6 +7,7 @@ import asyncio
 
 from bot import BackroomsBot
 from ._config import ConfigCog, Cfg
+from discord import Interaction
 
 START_HEADER_ID = "<|start_header_id|>"
 END_HEADER_ID = "<|end_header_id|>"
@@ -32,6 +33,78 @@ class ImitationCog(ConfigCog):
         self.lock = asyncio.Lock()
         self.context = ""
         self.id = self.generate_id()
+
+    async def user_autocomplete(self, interaction: Interaction, current: str):
+        authors = [
+            "kubikon",
+            "theramsay",
+            "metjuas",
+            "logw",
+            "throwdemgunz",
+            "s1r_o",
+            "gzvv",
+            "ithislen",
+            "_.spoot._",
+            "roytak",
+            "tominoftw",
+            ".stepha",
+            "jurge_chorche",
+            "ericc727",
+            "Backrooms bot",
+            "andrejmokris",
+            "noname7571",
+            "frogerius",
+            "kulvplote",
+            "soromis",
+            "krekon_",
+            "lakmatiol",
+            "josefkuchar",
+            "mrstinky",
+            "louda7658",
+            "tamoka.",
+            "dajvid",
+            "kocotom",
+            "kubosh",
+            "upwell",
+            "padi142",
+            "prity_joke",
+            "jankaxdd",
+            "tokugawa6139",
+            "toaster",
+            "oty_suvenyr",
+            "Rubbergod",
+            "GrillBot",
+            "jezko",
+            ".jerrys",
+            "redak",
+            "donmegonasayit",
+            "fpmk",
+            "whoislisalisa",
+            "Dank Memer",
+            "nevarilovav",
+            "OpenBB Bot",
+            "avepanda",
+            "bonobonobono",
+            "man1ak",
+            "t1mea_",
+            "nycella",
+            "headclass",
+            "puroki",
+            "_blaza_",
+            "natyhr",
+            "Dyno",
+            "Jockie Music (2)",
+            "louda",
+            "Tokugawa",
+            "cultsauce_",
+            "Agent Smith",
+            "Vlčice",
+            "Compiler",
+            "Cappuccino",
+            "solumath",
+        ]
+
+        return [a for a in authors if a.startswith(current.lower())]
 
     def get_formatted_message(
         self, author: str, content: str, id: int, reply_id: int = None
@@ -179,6 +252,7 @@ class ImitationCog(ConfigCog):
         name="imitation_insert",
         description="Vložení zprávy do kontextu",
     )
+    @app_commands.autocomplete(author=user_autocomplete)
     async def insert_context(
         self,
         interaction: discord.Interaction,
