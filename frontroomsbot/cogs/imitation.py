@@ -31,7 +31,6 @@ class ImitationCog(ConfigCog):
         self.bot = bot
         self.lock = asyncio.Lock()
         self.context = ""
-        self.id = self.generate_id()
 
     def get_formatted_message(
         self, author: str, content: str, id: int, reply_id: int = None
@@ -73,19 +72,6 @@ class ImitationCog(ConfigCog):
         reply_id = match.group(3).strip()
 
         return self.get_formatted_message(author, content, id, reply_id)
-
-    def generate_id(self):
-        """Generate fake discord message ID"""
-
-        # 18 - 19 digits
-        return randrange(10**17, 10**19)
-
-    def get_id(self):
-        """Increment the fake discord message ID by reasonable amount and return it"""
-
-        # Increment by some random relatively small number
-        self.id += randrange(10, 500)
-        return self.id
 
     async def respond(self, interaction: discord.Interaction, raw: str, first=True):
         """
@@ -166,7 +152,7 @@ class ImitationCog(ConfigCog):
                 await interaction.response.defer()
                 for i, _ in enumerate(range(message_count)):
                     # Build the header
-                    header = START_HEADER_ID + str(self.get_id()) + MESSAGE_ID
+                    header = START_HEADER_ID
                     # Get continuation from the model
                     prediction = await self.get_prediction(header)
                     # Include header, because model only returns new tokens
@@ -201,12 +187,17 @@ class ImitationCog(ConfigCog):
                 await interaction.response.defer()
 
                 # Build the header
-                header = START_HEADER_ID + str(self.get_id()) + MESSAGE_ID
+                header = START_HEADER_ID
 
-                # If author is not provided, get it from the model
-                if not author:
-                    author = await self.get_prediction(header, REPLY_ID)
-                header += author + REPLY_ID
+                if author:
+                    header += (
+                        await self.get_prediction(header, MESSAGE_ID)
+                        + MESSAGE_ID
+                        + author
+                        + REPLY_ID
+                    )
+                else:
+                    header += await self.get_prediction(header, REPLY_ID) + REPLY_ID
 
                 # Only include reply ID if it is provided
                 if reply_id:
@@ -230,19 +221,12 @@ class ImitationCog(ConfigCog):
             await self.send_busy_message(interaction)
 
     @app_commands.command(name="imitation_clear", description="Smazání kontextu")
-    async def clear_context(
-        self, interaction: discord.Interaction, starting_id: int = None
-    ):
+    async def clear_context(self, interaction: discord.Interaction):
         """Clear the imitation context"""
 
         if not self.lock.locked():
             async with self.lock:
                 self.context = ""
-
-                if not starting_id:
-                    self.id = self.generate_id()
-                else:
-                    self.id = starting_id
 
                 await interaction.response.send_message("*Kontext byl smazán*")
         else:
