@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 import httpx
 import re
-from random import randrange
 import asyncio
 
 from bot import BackroomsBot
@@ -102,6 +101,8 @@ class ImitationCog(ConfigCog):
             "Cappuccino",
             "solumath",
         ]
+        if not current:
+            return authors
 
         return [a for a in authors if a.startswith(current.lower())]
 
