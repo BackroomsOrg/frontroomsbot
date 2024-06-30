@@ -26,6 +26,8 @@ class ImitationCog(ConfigCog):
     req_timeout = Cfg(int, default=30)
 
     def __init__(self, bot: BackroomsBot) -> None:
+        super().__init__(bot)
+
         self.bot = bot
         self.lock = asyncio.Lock()
         self.context = ""
