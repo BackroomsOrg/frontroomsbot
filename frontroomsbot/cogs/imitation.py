@@ -104,7 +104,11 @@ class ImitationCog(ConfigCog):
         if not current:
             return authors
 
-        return [a for a in authors if a.startswith(current.lower())]
+        return [
+            app_commands.Choice(name=a, value=a)
+            for a in authors
+            if a.startswith(current.lower())
+        ]
 
     def get_formatted_message(
         self, author: str, content: str, id: int, reply_id: int = None
