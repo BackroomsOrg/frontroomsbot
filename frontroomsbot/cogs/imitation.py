@@ -1,9 +1,6 @@
 import discord
 from discord import app_commands
 import httpx
-import tempfile
-from PIL import Image
-import requests
 import re
 import asyncio
 
@@ -128,32 +125,8 @@ class ImitationCog(ConfigCog):
             if em.name == author:
                 emoji = em
                 break
-        if not emoji:  # we need to create a new emoji
-            member = self.bot.pantry.get_member_named(author)
-            if not member:
-                # author is not in the current backrooms, let's try to find him in the chat history at least
-                # this loop is a bad idea, but it's the only way to get the author's avatar
-                async for msg in self.bot.backrooms.history(limit=None):
-                    if msg.author.name == author:
-                        member = msg.author
-                        break
-            if member:
-                avatar_url = member.avatar_url
-            else:
-                # sadly, we can't find the author, so we'll just use some default avatar
-                avatar_url = "https://ia800305.us.archive.org/31/items/discordprofilepictures/discordblue.png"
-
-            # download, resize and upload the avatar as a new emoji to the pantry
-            with tempfile.TemporaryDirectory() as tempdir:
-                response = requests.get(avatar_url)
-                with open(f"{tempdir}/{member.name}.png", "wb") as f:
-                    f.write(response.content)
-                image = Image.open(f"{tempdir}/{member.name}.png")
-                image = image.resize((128, 128))
-                image.save(f"{tempdir}/{member.name}.png")
-                emoji = self.bot.pantry.create_custom_emoji(
-                    name=member.name, image=image
-                )
+        if not emoji:
+            emoji = "❄️"
 
         message = f"{emoji}  **{author}** | *msg ID: [{id}]*"
         if reply_id:
