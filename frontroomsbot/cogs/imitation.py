@@ -107,7 +107,7 @@ class ImitationCog(ConfigCog):
 
         return [a for a in authors if a.name.startswith(current.lower())]
 
-    async def get_formatted_message(
+    def get_formatted_message(
         self, author: str, content: str, id: int, reply_id: int = None
     ):
         """
@@ -134,7 +134,7 @@ class ImitationCog(ConfigCog):
         message += f"*\n>>> {content}"
         return message
 
-    async def get_message_from_raw(self, raw: str):
+    def get_message_from_raw(self, raw: str):
         """
         Get the message from the raw model response
 
@@ -154,7 +154,7 @@ class ImitationCog(ConfigCog):
         id = match.group(1).strip()
         reply_id = match.group(3).strip()
 
-        return await self.get_formatted_message(author, content, id, reply_id)
+        return self.get_formatted_message(author, content, id, reply_id)
 
     async def respond(self, interaction: discord.Interaction, raw: str, first=True):
         """
@@ -167,7 +167,7 @@ class ImitationCog(ConfigCog):
 
         print(raw)
         try:
-            message = await self.get_message_from_raw(raw)
+            message = self.get_message_from_raw(raw)
             self.context += raw
         except InvalidResponseException:
             message = "*Nepodařilo se získat odpověď od modelu*"
