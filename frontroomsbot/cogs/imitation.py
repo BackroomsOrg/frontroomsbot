@@ -107,6 +107,14 @@ class ImitationCog(ConfigCog):
 
         return [a for a in authors if a.name.startswith(current.lower())]
 
+    def get_emoji(self, name: str):
+        """Get the emoji by name"""
+
+        for emoji in self.bot.emojis:
+            if emoji.name.lower() == name.lower():
+                return emoji
+        return f":{name}:"
+
     def get_formatted_message(
         self, author: str, content: str, id: int, reply_id: int = None
     ):
@@ -119,6 +127,9 @@ class ImitationCog(ConfigCog):
         :param reply_id: The ID of the message being replied to
         :return: The formatted message
         """
+
+        # Patch emojis
+        content = re.sub(r":(\w+):", lambda x: str(self.get_emoji(x.group(1))), content)
 
         message = f"**{author}** *ID: [{id}]"
         if reply_id:
