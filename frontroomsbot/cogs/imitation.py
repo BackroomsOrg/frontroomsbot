@@ -1,6 +1,9 @@
 import discord
 from discord import app_commands
 import httpx
+import tempfile
+from PIL import Image
+import requests
 import re
 import asyncio
 
@@ -107,7 +110,7 @@ class ImitationCog(ConfigCog):
 
         return [a for a in authors if a.name.startswith(current.lower())]
 
-    def get_formatted_message(
+    async def get_formatted_message(
         self, author: str, content: str, id: int, reply_id: int = None
     ):
         """
@@ -120,13 +123,45 @@ class ImitationCog(ConfigCog):
         :return: The formatted message
         """
 
-        message = f"**{author}** *ID: [{id}]"
+        emoji = None
+        for em in self.bot.pantry.emojis:
+            if em.name == author:
+                emoji = em
+                break
+        if not emoji:  # we need to create a new emoji
+            member = self.bot.pantry.get_member_named(author)
+            if not member:
+                # author is not in the current backrooms, let's try to find him in the chat history at least
+                # this loop is a bad idea, but it's the only way to get the author's avatar
+                async for msg in self.bot.backrooms.history(limit=None):
+                    if msg.author.name == author:
+                        member = msg.author
+                        break
+            if member:
+                avatar_url = member.avatar_url
+            else:
+                # sadly, we can't find the author, so we'll just use some default avatar
+                avatar_url = "https://ia800305.us.archive.org/31/items/discordprofilepictures/discordblue.png"
+
+            # download, resize and upload the avatar as a new emoji to the pantry
+            with tempfile.TemporaryDirectory() as tempdir:
+                response = requests.get(avatar_url)
+                with open(f"{tempdir}/{member.name}.png", "wb") as f:
+                    f.write(response.content)
+                image = Image.open(f"{tempdir}/{member.name}.png")
+                image = image.resize((128, 128))
+                image.save(f"{tempdir}/{member.name}.png")
+                emoji = self.bot.pantry.create_custom_emoji(
+                    name=member.name, image=image
+                )
+
+        message = f"{emoji}  **{author}** | *msg ID: [{id}]*"
         if reply_id:
             message += f" | Reply to: [{reply_id}]"
         message += f"*\n>>> {content}"
         return message
 
-    def get_message_from_raw(self, raw: str):
+    async def get_message_from_raw(self, raw: str):
         """
         Get the message from the raw model response
 
@@ -146,7 +181,7 @@ class ImitationCog(ConfigCog):
         id = match.group(1).strip()
         reply_id = match.group(3).strip()
 
-        return self.get_formatted_message(author, content, id, reply_id)
+        return await self.get_formatted_message(author, content, id, reply_id)
 
     async def respond(self, interaction: discord.Interaction, raw: str, first=True):
         """
@@ -159,7 +194,7 @@ class ImitationCog(ConfigCog):
 
         print(raw)
         try:
-            message = self.get_message_from_raw(raw)
+            message = await self.get_message_from_raw(raw)
             self.context += raw
         except InvalidResponseException:
             message = "*Nepodařilo se získat odpověď od modelu*"
