@@ -23,13 +23,7 @@ class BackroomsBot(commands.Bot):
         db_client = ma.AsyncIOMotorClient(DB_CONN)
         self.db = db_client.bot_database
         self.backrooms = backrooms
-        self.pantry = None
-
-    async def on_ready(self):
-        # change the object to a real guild object after bot is ready
-        self.backrooms = self.get_guild(GUILD)
-        # also get the pantry guild
-        self.pantry = self.get_guild(PANTRY_GUILD)
+        self.pantry_id = int(PANTRY_GUILD)
 
     async def setup_hook(self):
         for filename in os.listdir(COGS_DIR):
