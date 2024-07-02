@@ -3,16 +3,13 @@ from discord import app_commands
 from discord.ext import tasks
 import tempfile
 from PIL import Image
-import requests
+import httpx
 
 from bot import BackroomsBot
 from ._config import ConfigCog, Cfg
 
 
 class AvatarEmojiCog(ConfigCog):
-    server = Cfg(str)
-    req_timeout = Cfg(int, default=30)
-
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
 
@@ -38,16 +35,18 @@ class AvatarEmojiCog(ConfigCog):
 
         with tempfile.TemporaryDirectory() as tempdir:
             # download the avatar
-            response = requests.get(avatar_url)
-            with open(f"{tempdir}/{member_name}.png", "wb") as f:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(avatar_url, timeout=30)
+            image_path = f"{tempdir}/{member_name}.png"
+            with open(image_path, "wb") as f:
                 f.write(response.content)
             # resize the avatar
-            image = Image.open(f"{tempdir}/{member_name}.png")
+            image = Image.open(image_path)
             image = image.resize((128, 128))
-            image.save(f"{tempdir}/{member_name}.png")
+            image.save(image_path)
             # upload the avatar as a new emoji to the pantry
             return await self.bot.pantry.create_custom_emoji(
-                name=member_name, image=image
+                name=member_name, image=open(image_path, "rb").read()
             )
 
 

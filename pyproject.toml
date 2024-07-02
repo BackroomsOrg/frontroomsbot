@@ -18,7 +18,6 @@ toml = "^0.10.2"
 motor = "^3.3.2"
 websockets = "^12.0"
 pillow = "^10.4.0"
-requests = "^2.32.3"
 
 [build-system]
 requires = ["poetry-core"]
