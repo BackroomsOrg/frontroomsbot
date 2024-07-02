@@ -141,7 +141,7 @@ class ImitationCog(ConfigCog):
 
         message = f"{emoji}  **{author}** | *msg ID: [{id}]*"
         if reply_id:
-            message += f" | Reply to: [{reply_id}]"
+            message += f" | *Reply to: [{reply_id}]*"
         message += f"\n>>> {content}"
         return message
 
