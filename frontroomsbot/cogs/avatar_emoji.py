@@ -6,7 +6,7 @@ from PIL import Image
 import httpx
 
 from bot import BackroomsBot
-from ._config import ConfigCog, Cfg
+from ._config import ConfigCog
 
 
 class AvatarEmojiCog(ConfigCog):
