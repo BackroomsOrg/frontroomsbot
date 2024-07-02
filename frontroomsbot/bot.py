@@ -13,8 +13,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.reactions = True
 
+# simple object only with id attribute used on cogs setup
 backrooms = discord.Object(id=GUILD)
-pantry = discord.Object(id=PANTRY_GUILD)
 
 
 class BackroomsBot(commands.Bot):
@@ -23,7 +23,13 @@ class BackroomsBot(commands.Bot):
         db_client = ma.AsyncIOMotorClient(DB_CONN)
         self.db = db_client.bot_database
         self.backrooms = backrooms
-        self.pantry = pantry
+        self.pantry = None
+
+    async def on_ready(self):
+        # change the object to a real guild object after bot is ready
+        self.backrooms = self.get_guild(GUILD)
+        # also get the pantry guild
+        self.pantry = self.get_guild(PANTRY_GUILD)
 
     async def setup_hook(self):
         for filename in os.listdir(COGS_DIR):
