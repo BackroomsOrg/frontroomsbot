@@ -62,6 +62,7 @@ jobs:
           --extra-vars password=${{secrets.GITHUB_TOKEN}}
           --extra-vars DISCORD_TOKEN=${{secrets.BOT_TOKEN}}
           --extra-vars GUILD=${{vars.GUILD_ID}}
+          --extra-vars PANTRY_GUILD=${{vars.PANTRY_GUILD}}
           --extra-vars HF_TOKEN=${{secrets.HF_TOKEN}}
           --extra-vars ERROR_WH=${{secrets.ERROR_WH}}
           --extra-vars GEMINI_TOKEN=${{secrets.GEMINI_TOKEN}}

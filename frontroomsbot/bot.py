@@ -13,19 +13,17 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.reactions = True
 
+backrooms = discord.Object(id=GUILD)
+pantry = discord.Object(id=PANTRY_GUILD)
+
 
 class BackroomsBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         db_client = ma.AsyncIOMotorClient(DB_CONN)
         self.db = db_client.bot_database
-
-    async def on_ready(self):
-        """
-        Set global values that require the bot to be ready, such as guilds and channels
-        """
-        self.backrooms = self.get_guild(int(GUILD))
-        self.pantry = self.get_guild(int(PANTRY_GUILD))
+        self.backrooms = backrooms
+        self.pantry = pantry
 
     async def setup_hook(self):
         for filename in os.listdir(COGS_DIR):

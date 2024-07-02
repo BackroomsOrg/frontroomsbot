@@ -1,6 +1,5 @@
 import discord
 from discord import app_commands
-from discord.ext import tasks
 import tempfile
 from PIL import Image
 import httpx
@@ -21,8 +20,7 @@ class AvatarEmojiCog(ConfigCog):
         name="reload_avatars",
         description="Force avatars emojis to be reloaded in pantry",
     )
-    @tasks.loop(hours=4 * 24)
-    async def reload_avatars(self):
+    async def reload_avatars(self, interaction: discord.Interaction):
         # create an emoji for each member in the backrooms channel
         backrooms_channel = self.bot.get_channel(await self.backrooms_channel_id)
         for member in backrooms_channel.members:
