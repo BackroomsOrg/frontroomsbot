@@ -7,7 +7,7 @@ import httpx
 from discord.ext import commands
 import motor.motor_asyncio as ma
 
-from consts import TOKEN, GUILD, DB_CONN, COGS_DIR, ERROR_WH, PANTRY_GUILD
+from consts import TOKEN, GUILD, DB_CONN, COGS_DIR, ERROR_WH, PANTRY_GUILD, BACKROOMS
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -24,9 +24,9 @@ class BackroomsBot(commands.Bot):
         """
         Set global values that require the bot to be ready, such as guilds and channels
         """
-        self.sirojekokot = self.get_guild(GUILD)
-        self.backrooms = self.sirojekokot.get_channel(1174671571898601492)
-        self.pantry = self.get_guild(PANTRY_GUILD)
+        self.backrooms = self.get_guild(int(GUILD))
+        self.backrooms_channel = self.backrooms.get_channel(int(BACKROOMS))
+        self.pantry = self.get_guild(int(PANTRY_GUILD))
 
     async def setup_hook(self):
         for filename in os.listdir(COGS_DIR):

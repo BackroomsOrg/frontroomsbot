@@ -21,8 +21,8 @@ class AvatarEmojiCog(ConfigCog):
     )
     @tasks.loop(hours=4 * 24)
     async def reload_avatars(self):
-        # create an emoji for each member in the backrooms
-        for member in self.bot.backrooms.members:
+        # create an emoji for each member in the backrooms channel
+        for member in self.bot.backrooms_channel.members:
             await self.create_avatar_emoji_in_pantry(member.name, member.avatar_url)
 
     async def create_avatar_emoji_in_pantry(
