@@ -33,7 +33,7 @@ class AvatarEmojiCog(ConfigCog):
             await self.create_avatar_emoji_in_pantry(
                 member.id, member.display_avatar.url
             )
-        interaction.response.send_message("Avatars reloaded", ephemeral=True)
+        await interaction.response.send_message("Avatars reloaded", ephemeral=True)
 
     async def create_avatar_emoji_in_pantry(
         self, member_id: int, avatar_url: str
