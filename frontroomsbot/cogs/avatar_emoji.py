@@ -6,10 +6,12 @@ from PIL import Image
 import httpx
 
 from bot import BackroomsBot
-from ._config import ConfigCog
+from ._config import ConfigCog, Cfg
 
 
 class AvatarEmojiCog(ConfigCog):
+    backrooms_channel_id = Cfg(int)
+
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
 
@@ -22,7 +24,8 @@ class AvatarEmojiCog(ConfigCog):
     @tasks.loop(hours=4 * 24)
     async def reload_avatars(self):
         # create an emoji for each member in the backrooms channel
-        for member in self.bot.backrooms_channel.members:
+        backrooms_channel = self.bot.get_channel(self.backrooms_channel_id)
+        for member in backrooms_channel.members:
             await self.create_avatar_emoji_in_pantry(member.name, member.avatar_url)
 
     async def create_avatar_emoji_in_pantry(
