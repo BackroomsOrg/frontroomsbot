@@ -21,6 +21,12 @@ class AvatarEmojiCog(ConfigCog):
         description="Force avatars emojis to be reloaded in pantry",
     )
     async def reload_avatars(self, interaction: discord.Interaction):
+        # be sure that pantry is loaded
+        if not self.bot.pantry:
+            await interaction.response.send_message(
+                "Pantry is not loaded, please try again later", ephemeral=True
+            )
+            return
         # create an emoji for each member in the backrooms channel
         backrooms_channel = self.bot.get_channel(await self.backrooms_channel_id)
         for member in backrooms_channel.members:
@@ -30,11 +36,11 @@ class AvatarEmojiCog(ConfigCog):
         interaction.response.send_message("Avatars reloaded", ephemeral=True)
 
     async def create_avatar_emoji_in_pantry(
-        self, member_id: str, avatar_url: str
+        self, member_id: int, avatar_url: str
     ) -> discord.Emoji:
         # delete the emoji if it already exists
         for em in self.bot.pantry.emojis:
-            if em.name == member_id:
+            if em.name == str(member_id):
                 await em.delete()
 
         with tempfile.TemporaryDirectory() as tempdir:
