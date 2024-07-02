@@ -128,13 +128,21 @@ class ImitationCog(ConfigCog):
         :return: The formatted message
         """
 
+        emoji = None
+        for em in self.bot.pantry.emojis:
+            if em.name == author:
+                emoji = em
+                break
+        if not emoji:
+            emoji = "❄️"
+
         # Patch emojis
         content = re.sub(r":(\w+):", lambda x: str(self.get_emoji(x.group(1))), content)
 
-        message = f"**{author}** *ID: [{id}]"
+        message = f"{emoji}  **{author}** | *msg ID: [{id}]*"
         if reply_id:
-            message += f" | Reply to: [{reply_id}]"
-        message += f"*\n>>> {content}"
+            message += f" | *Reply to: [{reply_id}]*"
+        message += f"\n>>> {content}"
         return message
 
     def get_message_from_raw(self, raw: str):
