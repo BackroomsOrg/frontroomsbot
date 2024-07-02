@@ -16,6 +16,7 @@
       env:
         DISCORD_TOKEN: '{{ DISCORD_TOKEN }}'
         GUILD_ID: '{{ GUILD }}'
+        PANTRY_GUILD: '{{ PANTRY_GUILD }}'
         HF_TOKEN: '{{ HF_TOKEN }}'
         ERROR_WH: '{{ ERROR_WH }}'
         GEMINI_TOKEN: '{{ GEMINI_TOKEN }}'
