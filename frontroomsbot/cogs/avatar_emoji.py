@@ -21,7 +21,6 @@ class AvatarEmojiCog(ConfigCog):
         name="reload_avatars",
         description="Force avatars emojis to be reloaded in pantry",
     )
-    @tasks.loop(hours=4 * 24)
     async def reload_avatars(self):
         # create an emoji for each member in the backrooms channel
         backrooms_channel = self.bot.get_channel(await self.backrooms_channel_id)
