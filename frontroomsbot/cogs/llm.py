@@ -65,7 +65,7 @@ class LLMCog(ConfigCog):
         else:
             raise RuntimeError(f"Gemini failed {response.status_code}: {json}")
 
-    async def handle_groq(self, conversation: list[dict]):
+    async def handle_groq(self, model, conversation: list[dict]):
         API_URL = "https://api.groq.com/openai/v1/chat/completions"
         data = {
             "messages": [
@@ -75,7 +75,7 @@ class LLMCog(ConfigCog):
                 },
             ]
             + conversation,
-            "model": "llama3-70b-8192",
+            "model": model,
         }
         headers = {
             "Authorization": f"Bearer {GROQ_TOKEN}",
@@ -91,11 +91,18 @@ class LLMCog(ConfigCog):
         else:
             raise RuntimeError(f"Groq failed {response.status_code}: {json}")
 
+    async def handle_llama(self, conversation: list[dict]):
+        return self.handle_groq("llama3-70b-8192", conversation)
+
+    async def handle_gemma(self, conversation: list[dict]):
+        return self.handle_groq("gemma2-9b-it", conversation)
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         suffix_map = {
             "??": self.handle_google_gemini,
-            "?!": self.handle_groq,
+            "?!": self.handle_llama,
+            "?.": self.handle_gemma,
         }
 
         if message.channel.id != await self.botroom_id:
