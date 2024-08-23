@@ -22,13 +22,23 @@ class PinSquashCog(ConfigCog):
             pin_links.append(f"[Message]({pin.jump_url})")
 
         if pin_links:
-            content = "Previously pinned messages:\n" + "\n".join(pin_links)
-            new_pin = await channel.send(content)
-            await new_pin.pin()
+            chunks = []
+            current_chunk = "Previously pinned messages:\n"
 
-            await interaction.response.send_message(
-                "Pins squashed and new summary pinned."
-            )
+            for link in pin_links:
+                if len(current_chunk) + len(link) + 1 > 2000:
+                    chunks.append(current_chunk)
+                    current_chunk = link + "\n"
+                else:
+                    current_chunk += link + "\n"
+
+            if current_chunk:
+                chunks.append(current_chunk)
+
+        for i, chunk in enumerate(chunks):
+            new_pin = await channel.send(chunk)
+            if i == 0:
+                await new_pin.pin()
         else:
             await interaction.response.send_message("No pins found to squash.")
 
