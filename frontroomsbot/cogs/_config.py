@@ -92,10 +92,12 @@ class Cfg:
         self.name = name
 
     @overload
-    def __get__(self, obj: None, objtype=None) -> "Cfg": ...
+    def __get__(self, obj: None, objtype=None) -> "Cfg":
+        ...
 
     @overload
-    def __get__(self, obj: "ConfigCog", objtype=None) -> Awaitable[Any]: ...
+    def __get__(self, obj: "ConfigCog", objtype=None) -> Awaitable[Any]:
+        ...
 
     def __get__(
         self, obj: Union["ConfigCog", None], objtype=None
