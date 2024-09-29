@@ -12,6 +12,7 @@ USER_RE = re.compile(r"<@\d+>")
 
 class TldrCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
+        self.bot = bot
         genai.configure(api_key=GEMINI_TOKEN)
         self.model = genai.GenerativeModel("gemini-1.5-flash")
         self.token_limit = 1000000
