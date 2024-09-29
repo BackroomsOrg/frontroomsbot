@@ -22,7 +22,7 @@ class MiscellaneousCog(commands.Cog):
     @app_commands.command(name="sync", description="Syncs commands")
     async def sync(self, interaction: discord.Interaction):
         print("Syncing commands")
-        ret = await self.bot.tree.sync(guild=self.bot.guilds[0])
+        ret = await self.bot.tree.sync(guild=self.bot.backrooms)
         print(ret)
         await interaction.response.send_message("Synced!")
         print("Command tree synced")
