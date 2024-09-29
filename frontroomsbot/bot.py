@@ -26,11 +26,15 @@ class BackroomsBot(commands.Bot):
         self.pantry = pantry
 
     async def setup_hook(self):
+        # loads all cogs
         for filename in os.listdir(COGS_DIR):
             if filename.endswith("py") and not filename.startswith("_"):
                 await self.load_extension(
                     f"{'.'.join(COGS_DIR.split('/'))}.{filename[:-3]}"
                 )
+
+        # syncs the command tree with the backrooms guild
+        await self.tree.sync(guild=self.backrooms)
 
     async def on_error(self, event: str, *args, **kwargs):
         content = StringIO()
