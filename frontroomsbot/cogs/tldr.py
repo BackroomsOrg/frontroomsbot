@@ -11,7 +11,6 @@ USER_RE = re.compile(r"<@\d+>")
 
 
 class TldrCog(ConfigCog):
-
     def __init__(self, bot: BackroomsBot) -> None:
         super().__init__(bot)
         genai.configure(api_key=GEMINI_TOKEN)
