@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands, MessageType
+from discord.ext import commands
 from bot import BackroomsBot
-from ._config import ConfigCog
 import google.generativeai as genai
 import re
 
@@ -10,9 +10,8 @@ from consts import GEMINI_TOKEN
 USER_RE = re.compile(r"<@\d+>")
 
 
-class TldrCog(ConfigCog):
+class TldrCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
-        super().__init__(bot)
         genai.configure(api_key=GEMINI_TOKEN)
         self.model = genai.GenerativeModel("gemini-1.5-flash")
         self.token_limit = 1000000
