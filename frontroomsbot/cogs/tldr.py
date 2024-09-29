@@ -23,9 +23,19 @@ class TldrCog(ConfigCog):
     async def tldr(
         self,
         interaction: discord.Interaction,
-        message_id_start: int,
-        message_id_end: int | None = None,
+        message_id_start: str,
+        message_id_end: str | None = None,
     ):
+        try:
+            message_id_start = int(message_id_start)
+            if message_id_end is not None:
+                message_id_end = int(message_id_end)
+        except ValueError:
+            await interaction.response.send_message(
+                content="Invalid message ID format. Please provide a valid message ID."
+            )
+            return
+
         # defer response to avoid timeout
         await interaction.response.defer()
 
