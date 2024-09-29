@@ -1,5 +1,12 @@
 import discord
-from discord import app_commands, MessageType
+from discord import (
+    app_commands,
+    MessageType,
+    TextChannel,
+    Message,
+    Interaction,
+    AppCommandType,
+)
 from discord.ext import commands
 from bot import BackroomsBot
 import google.generativeai as genai
@@ -10,108 +17,172 @@ from consts import GEMINI_TOKEN
 USER_RE = re.compile(r"<@\d+>")
 
 
+class TldrError(Exception):
+    def __init__(self, error_msg: str):
+        self.error_msg = error_msg
+        super().__init__(self.error_msg)
+
+
+class TokensLimitExceededError(TldrError):
+    pass
+
+
+class MessageIdInvalidError(TldrError):
+    pass
+
+
+class StartMsgOlderThanEndMsgError(TldrError):
+    def __init__(
+        self,
+        error_msg: str = "Starting message must not be newer than the ending message.",
+    ):
+        super().__init__(error_msg)
+
+
 class TldrCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
         genai.configure(api_key=GEMINI_TOKEN)
         self.model = genai.GenerativeModel("gemini-1.5-flash")
         self.token_limit = 1000000
+        self.ctx_menu = app_commands.ContextMenu(
+            name="TL;DR",
+            callback=self.tldr_context_menu,
+            type=AppCommandType.message,
+            guild_ids=[
+                self.bot.backrooms.id
+            ],  # needed to lock the command to the backrooms guild
+        )
+        self.bot.tree.add_command(self.ctx_menu)
 
     @app_commands.command(
         name="tldr", description="Vytvoří krátký souhrn mezi zprávami"
     )
     async def tldr(
         self,
-        interaction: discord.Interaction,
+        interaction: Interaction,
         message_id_start: str,
         message_id_end: str | None = None,
     ):
-        try:
-            message_id_start = int(message_id_start)
-            if message_id_end is not None:
-                message_id_end = int(message_id_end)
-        except ValueError:
-            await interaction.response.send_message(
-                content="Invalid message ID format. Please provide a valid message ID."
-            )
-            return
-
-        # defer response to avoid timeout
-        await interaction.response.defer()
-
-        # Get the channel
         channel = interaction.channel
 
-        # Fetch the starting and ending messages
-        message_start = await channel.fetch_message(message_id_start)
-        # Fetch the ending message or use the last message in the channel if not provided
-        if message_id_end is None:
-            # Fetch the ending message or use the last message in the channel if not provided
-            if message_id_end is None:
-                message_end = None
-                async for msg in channel.history(limit=1):
-                    message_end = msg
-                    break
-        else:
-            message_end = await channel.fetch_message(message_id_end)
-
-        if message_start is None:
-            await interaction.followup.send(content="Starting message not found.")
-            return
-        if message_end is None:
-            await interaction.followup.send(content="Ending message not found.")
-            return
-
-        # Ensure the message_id_start is older than message_id_end
-        if message_start.created_at >= message_end.created_at:
-            await interaction.followup.send(
-                content="Starting message must be older than the ending message."
+        try:
+            message_start = await self._parse_message_id_to_message(
+                channel, message_id_start
             )
+            if message_id_end is not None:
+                message_end = await self._parse_message_id_to_message(
+                    channel, message_id_end
+                )
+            else:
+                message_end = await self._get_last_message(channel)
+        except TldrError as e:
+            await interaction.response.send_message(content=e.error_msg)
             return
+        except Exception as e:
+            await interaction.response.send_message(
+                content="An unexpected error occurred."
+            )
+            raise e
 
-        # Fetch the messages between the two message IDs
-        messages = []
-        async for msg in channel.history(
-            after=message_start, before=message_end, oldest_first=True
-        ):
-            msg_content = msg.content
+        await self._tldr(interaction, message_start, message_end)
 
-            # Replace user mentions with their names
-            searches = USER_RE.findall(msg_content)
-            for search in searches:
-                user_id = search[2:-1]
-                user = await self.bot.fetch_user(user_id)
-                msg_content = msg_content.replace(search, user.name)
+    async def tldr_context_menu(self, interaction: Interaction, message_start: Message):
+        channel = interaction.channel
+        try:
+            message_end = await self._get_last_message(channel)
+        except TldrError as e:
+            await interaction.response.send_message(content=e.error_msg)
+            return
+        await self._tldr(interaction, message_start, message_end)
 
-            simplified_message = {
-                "id": msg.id,
-                "author": msg.author.name,
-                "created_at": msg.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                "message": msg_content,
-            }
-            if msg.type == MessageType.reply:
-                simplified_message["reply_to"] = msg.reference.message_id
-            messages.append(simplified_message)
+    # Remove the command from the tree when the cog is unloaded
+    async def cog_unload(self) -> None:
+        self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
-        # Convert the messages to JSON format
-        input = str(messages)
+    async def _get_last_message(self, channel: TextChannel) -> Message:
+        # try to get the last message in the channel from cache
+        message_end = channel.last_message
+        if message_end is not None:
+            return message_end
+        # if not found, fetch the last message manually
+        async for msg in channel.history(limit=1):
+            return msg
 
-        # Generate a TLDR summary
+    def _generate_tldr(self, input: str) -> str:
         tokens = self.model.count_tokens(input)
         if tokens.total_tokens > self.token_limit:
-            await interaction.followup.send(
-                content=f"Input exceeds the token limit: {self.token_limit}, total tokens: {tokens.total_tokens}."
+            raise TokensLimitExceededError(
+                f"Input exceeds the token limit: {self.token_limit}, total tokens: {tokens.total_tokens}."
             )
-            return
         prompt = (
             "You are given a Discord conversation. Summarize the main points and key ideas "
             "in a concise manner in Czech. Focus on the most important information and provide "
             "a clear and coherent summary.\n\n"
             f"Conversation:\n{input}"
         )
-        response = self.model.generate_content(prompt)
+        return self.model.generate_content(prompt).text
 
-        await interaction.followup.send(content=response.text)
+    async def _parse_message_id_to_message(
+        self, channel: TextChannel, message_id: str
+    ) -> Message:
+        try:
+            message_id = int(message_id)
+        except ValueError:
+            raise MessageIdInvalidError("Invalid message ID format.")
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound:
+            raise MessageIdInvalidError("Message not found based on the provided ID.")
+        return message
+
+    async def _tldr(
+        self,
+        interaction: discord.Interaction,
+        message_start: Message,
+        message_end: Message,
+    ):
+        try:
+            # defer response to avoid timeout
+            await interaction.response.defer()
+
+            channel = interaction.channel
+
+            if message_start.created_at > message_end.created_at:
+                raise StartMsgOlderThanEndMsgError()
+
+            # Fetch the messages between the two messages and simplify them
+            messages = []
+            async for msg in channel.history(
+                after=message_start, before=message_end, oldest_first=True
+            ):
+                msg_content = msg.content
+
+                # Replace user mentions with their names
+                searches = USER_RE.findall(msg_content)
+                for search in searches:
+                    user_id = search[2:-1]
+                    user = await self.bot.fetch_user(user_id)
+                    msg_content = msg_content.replace(search, user.name)
+
+                simplified_message = {
+                    "id": msg.id,
+                    "author": msg.author.name,
+                    "created_at": msg.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    "message": msg_content,
+                }
+                if msg.type == MessageType.reply:
+                    simplified_message["reply_to"] = msg.reference.message_id
+                messages.append(simplified_message)
+            input = str(messages)
+            tldr = self._generate_tldr(input)
+            await interaction.followup.send(content=tldr)
+
+        except TldrError as e:
+            await interaction.followup.send(content=e.error_msg)
+        except Exception as e:
+            await interaction.followup.send(content="An unexpected error occurred.")
+            raise e
 
 
 async def setup(bot: BackroomsBot) -> None:
