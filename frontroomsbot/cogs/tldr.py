@@ -154,7 +154,7 @@ class TldrCog(commands.Cog):
             # Fetch the messages between the two messages and simplify them
             messages = []
             async for msg in channel.history(
-                after=message_start, before=message_end, oldest_first=True
+                after=message_start, before=message_end, oldest_first=True, limit=10_000
             ):
                 msg_content = msg.content
 
