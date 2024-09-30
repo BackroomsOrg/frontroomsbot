@@ -11,8 +11,10 @@ from discord.ext import commands
 from bot import BackroomsBot
 import google.generativeai as genai
 import re
+import json
 
 from consts import GEMINI_TOKEN
+
 
 USER_RE = re.compile(r"<@\d+>")
 
@@ -40,20 +42,43 @@ class StartMsgOlderThanEndMsgError(TldrError):
 
 
 class TldrCog(commands.Cog):
+    EPHEMERAL = True  # make the response ephemeral
+    GEMINI_MODEL_NAME = "gemini-1.5-flash"
+    TOKEN_LIMIT = 100_000  # to be fine-tuned
+    MESSAGES_LIMIT = 10_000  # to be fine-tuned
+
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
         genai.configure(api_key=GEMINI_TOKEN)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
-        self.token_limit = 1000000
-        self.ctx_menu = app_commands.ContextMenu(
-            name="TL;DR",
-            callback=self.tldr_context_menu,
+        self.model = genai.GenerativeModel(self.GEMINI_MODEL_NAME)
+        self.boundaries = {}
+        self.ctx_menu_tldr_start = app_commands.ContextMenu(
+            name="TL;DR Start",
+            callback=self.ctx_menu_tldr_start,
             type=AppCommandType.message,
             guild_ids=[
                 self.bot.backrooms.id
             ],  # needed to lock the command to the backrooms guild
         )
-        self.bot.tree.add_command(self.ctx_menu)
+        self.ctx_menu_tldr_end = app_commands.ContextMenu(
+            name="TL;DR End",
+            callback=self.ctx_menu_tldr_end,
+            type=AppCommandType.message,
+            guild_ids=[
+                self.bot.backrooms.id
+            ],  # needed to lock the command to the backrooms guild
+        )
+        self.ctx_menu_tldr_execute = app_commands.ContextMenu(
+            name="TL;DR Execute",
+            callback=self.ctx_menu_tldr_execute,
+            type=AppCommandType.message,
+            guild_ids=[
+                self.bot.backrooms.id
+            ],  # needed to lock the command to the backrooms guild
+        )
+        self.bot.tree.add_command(self.ctx_menu_tldr_start)
+        self.bot.tree.add_command(self.ctx_menu_tldr_end)
+        self.bot.tree.add_command(self.ctx_menu_tldr_execute)
 
     @app_commands.command(
         name="tldr", description="Vytvoří krátký souhrn mezi zprávami"
@@ -77,28 +102,69 @@ class TldrCog(commands.Cog):
             else:
                 message_end = await self._get_last_message(channel)
         except TldrError as e:
-            await interaction.response.send_message(content=e.error_msg)
+            await interaction.response.send_message(
+                content=e.error_msg, ephemeral=self.EPHEMERAL
+            )
             return
         except Exception as e:
             await interaction.response.send_message(
-                content="An unexpected error occurred."
+                content="An unexpected error occurred.", ephemeral=self.EPHEMERAL
             )
             raise e
 
         await self._tldr(interaction, message_start, message_end)
 
-    async def tldr_context_menu(self, interaction: Interaction, message_start: Message):
+    async def ctx_menu_tldr_start(
+        self, interaction: Interaction, message_start: Message
+    ):
+        # TODO
         channel = interaction.channel
         try:
             message_end = await self._get_last_message(channel)
         except TldrError as e:
-            await interaction.response.send_message(content=e.error_msg)
+            await interaction.response.send_message(
+                content=e.error_msg, ephemeral=self.EPHEMERAL
+            )
             return
         await self._tldr(interaction, message_start, message_end)
 
-    # Remove the command from the tree when the cog is unloaded
+    async def ctx_menu_tldr_end(self, interaction: Interaction, message_start: Message):
+        # TODO
+        channel = interaction.channel
+        try:
+            message_end = await self._get_last_message(channel)
+        except TldrError as e:
+            await interaction.response.send_message(
+                content=e.error_msg, ephemeral=self.EPHEMERAL
+            )
+            return
+        await self._tldr(interaction, message_start, message_end)
+
+    async def ctx_menu_tldr_start_execute(
+        self, interaction: Interaction, message_start: Message
+    ):
+        # TODO
+        channel = interaction.channel
+        try:
+            message_end = await self._get_last_message(channel)
+        except TldrError as e:
+            await interaction.response.send_message(
+                content=e.error_msg, ephemeral=self.EPHEMERAL
+            )
+            return
+        await self._tldr(interaction, message_start, message_end)
+
+    # Remove the commands from the tree when the cog is unloaded
     async def cog_unload(self) -> None:
-        self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
+        self.bot.tree.remove_command(
+            self.ctx_menu_tldr_start.name, type=self.ctx_menu_tldr_start.type
+        )
+        self.bot.tree.remove_command(
+            self.ctx_menu_tldr_end.name, type=self.ctx_menu_tldr_end.type
+        )
+        self.bot.tree.remove_command(
+            self.ctx_menu_tldr_execute.name, type=self.ctx_menu_tldr_execute.type
+        )
 
     async def _get_last_message(self, channel: TextChannel) -> Message:
         # try to get the last message in the channel from cache
@@ -109,17 +175,17 @@ class TldrCog(commands.Cog):
         async for msg in channel.history(limit=1):
             return msg
 
-    def _generate_tldr(self, input: str) -> str:
-        tokens = self.model.count_tokens(input)
-        if tokens.total_tokens > self.token_limit:
+    def _generate_tldr(self, messages: str) -> str:
+        tokens = self.model.count_tokens(messages)
+        if tokens.total_tokens > self.TOKEN_LIMIT:
             raise TokensLimitExceededError(
-                f"Input exceeds the token limit: {self.token_limit}, total tokens: {tokens.total_tokens}."
+                f"Input exceeds the token limit: {self.TOKEN_LIMIT}, total tokens: {tokens.total_tokens}."
             )
         prompt = (
             "You are given a Discord conversation. Summarize the main points and key ideas "
             "in a concise manner in Czech. Focus on the most important information and provide "
             "a clear and coherent summary.\n\n"
-            f"Conversation:\n{input}"
+            f"Conversation:\n{messages}"
         )
         return self.model.generate_content(prompt).text
 
@@ -144,7 +210,7 @@ class TldrCog(commands.Cog):
     ):
         try:
             # defer response to avoid timeout
-            await interaction.response.defer()
+            await interaction.response.defer(ephemeral=self.EPHEMERAL)
 
             channel = interaction.channel
 
@@ -153,9 +219,16 @@ class TldrCog(commands.Cog):
 
             # Fetch the messages between the two messages and simplify them
             messages = []
+
             async for msg in channel.history(
-                after=message_start, before=message_end, oldest_first=True, limit=10_000
+                after=message_start,
+                before=message_end,
+                oldest_first=True,
+                limit=self.MESSAGES_LIMIT,
             ):
+                if msg.author.bot:  # skip bot messages
+                    continue
+
                 msg_content = msg.content
 
                 # Replace user mentions with their names
@@ -174,14 +247,21 @@ class TldrCog(commands.Cog):
                 if msg.type == MessageType.reply:
                     simplified_message["reply_to"] = msg.reference.message_id
                 messages.append(simplified_message)
-            input = str(messages)
-            tldr = self._generate_tldr(input)
-            await interaction.followup.send(content=tldr)
+
+            serialized = json.dumps(messages)
+            print("serialized: ", serialized)
+            tldr = self._generate_tldr(serialized)
+            print("tldr: ", tldr)
+            await interaction.followup.send(content=tldr, ephemeral=self.EPHEMERAL)
 
         except TldrError as e:
-            await interaction.followup.send(content=e.error_msg)
+            await interaction.followup.send(
+                content=e.error_msg, ephemeral=self.EPHEMERAL
+            )
         except Exception as e:
-            await interaction.followup.send(content="An unexpected error occurred.")
+            await interaction.followup.send(
+                content="An unexpected error occurred.", ephemeral=self.EPHEMERAL
+            )
             raise e
 
 
