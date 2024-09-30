@@ -111,7 +111,7 @@ class TldrCog(commands.Cog):
         )
         response = self.model.generate_content(prompt)
 
-        await interaction.followup.send(content=response.text)
+        await interaction.followup.send(content=response.text, ephemal=True)
 
 
 async def setup(bot: BackroomsBot) -> None:
