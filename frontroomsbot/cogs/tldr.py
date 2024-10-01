@@ -7,7 +7,6 @@ from discord import (
     Interaction,
     AppCommandType,
 )
-from discord.ext import commands
 from bot import BackroomsBot
 import google.generativeai as genai
 import re
@@ -16,9 +15,6 @@ from collections import defaultdict
 from ._config import Cfg, ConfigCog
 
 from consts import GEMINI_TOKEN
-
-
-USER_RE = re.compile(r"<@\d+>")
 
 
 class TldrError(Exception):
@@ -149,7 +145,10 @@ class TldrCog(ConfigCog):
         self, interaction: Interaction, message: Message
     ):
         await interaction.response.defer(ephemeral=self.EPHEMERAL)
-        tldr = await self._generate_tldr_from_single_message(message.content)
+        msg_content = await self._replace_user_mentions_with_their_names(
+            message.content
+        )
+        tldr = await self._generate_tldr_from_single_message(msg_content)
         await interaction.followup.send(tldr, ephemeral=self.EPHEMERAL)
 
     # Remove the commands from the tree when the cog is unloaded
@@ -210,6 +209,15 @@ class TldrCog(ConfigCog):
             raise MessageIdInvalidError("Message not found based on the provided ID.")
         return message
 
+    async def _replace_user_mentions_with_their_names(self, message_content: str):
+        USER_RE = re.compile(r"<@\d+>")
+        searches = USER_RE.findall(message_content)
+        for search in searches:
+            user_id = search[2:-1]
+            user = await self.bot.fetch_user(user_id)
+            message_content = message_content.replace(search, user.name)
+        return message_content
+
     async def _tldr(
         self,
         channel: TextChannel,
@@ -244,12 +252,9 @@ class TldrCog(ConfigCog):
 
             msg_content = msg.content
 
-            # Replace user mentions with their names
-            searches = USER_RE.findall(msg_content)
-            for search in searches:
-                user_id = search[2:-1]
-                user = await self.bot.fetch_user(user_id)
-                msg_content = msg_content.replace(search, user.name)
+            msg_content = await self._replace_user_mentions_with_their_names(
+                msg_content
+            )
 
             simplified_message = {
                 "id": msg.id,
