@@ -7,7 +7,6 @@ from discord import (
     Interaction,
     AppCommandType,
 )
-from discord.ext import commands
 from bot import BackroomsBot
 import google.generativeai as genai
 import re
@@ -52,9 +51,9 @@ class TldrCog(ConfigCog):
         self.bot = bot
         genai.configure(api_key=GEMINI_TOKEN)
         # { (user_id, channel_id): [message_after, message_before] }
-        self.boundaries: defaultdict[tuple[int, int], list[Message | None]] = (
-            defaultdict(lambda: [None, None])
-        )
+        self.boundaries: defaultdict[
+            tuple[int, int], list[Message | None]
+        ] = defaultdict(lambda: [None, None])
 
         # Register the context menu commands
         self.ctx_menu_tldr_after = app_commands.ContextMenu(
