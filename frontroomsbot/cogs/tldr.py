@@ -234,6 +234,6 @@ class TldrCog(commands.Cog):
         tldr = self._generate_tldr(serialized)
         return tldr
 
-
+      
 async def setup(bot: BackroomsBot) -> None:
     await bot.add_cog(TldrCog(bot), guild=bot.backrooms)
