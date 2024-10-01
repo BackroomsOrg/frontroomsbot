@@ -12,6 +12,7 @@ from bot import BackroomsBot
 import google.generativeai as genai
 import re
 import json
+from collections import defaultdict
 
 from consts import GEMINI_TOKEN
 
@@ -42,6 +43,8 @@ class StartMsgOlderThanEndMsgError(TldrError):
 
 
 class TldrCog(commands.Cog):
+
+    # TODO: make this configurable
     EPHEMERAL = True  # make the response ephemeral
     GEMINI_MODEL_NAME = "gemini-1.5-flash"
     TOKEN_LIMIT = 100_000  # to be fine-tuned
@@ -49,128 +52,102 @@ class TldrCog(commands.Cog):
 
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
+
         genai.configure(api_key=GEMINI_TOKEN)
         self.model = genai.GenerativeModel(self.GEMINI_MODEL_NAME)
-        self.boundaries = {}
-        self.ctx_menu_tldr_start = app_commands.ContextMenu(
-            name="TL;DR Start",
-            callback=self.ctx_menu_tldr_start,
-            type=AppCommandType.message,
+        # { (user_id, channel_id): [message_after, message_before] }
+        self.boundaries: defaultdict[tuple[int, int], list[Message | None]] = (
+            defaultdict(lambda: [None, None])
+        )
+
+        # Register the context menu commands
+        self.ctx_menu_tldr_after = app_commands.ContextMenu(
+            name="TL;DR After This",
+            callback=self.ctx_menu_tldr_after_command,
+            type=AppCommandType.message,  # only for messages
             guild_ids=[
                 self.bot.backrooms.id
-            ],  # needed to lock the command to the backrooms guild
+            ],  # lock the command to the backrooms guild
         )
-        self.ctx_menu_tldr_end = app_commands.ContextMenu(
-            name="TL;DR End",
-            callback=self.ctx_menu_tldr_end,
-            type=AppCommandType.message,
+        self.ctx_menu_tldr_before = app_commands.ContextMenu(
+            name="TL;DR Before This",
+            callback=self.ctx_menu_tldr_before_command,
+            type=AppCommandType.message,  # only for messages
             guild_ids=[
                 self.bot.backrooms.id
-            ],  # needed to lock the command to the backrooms guild
+            ],  # lock the command to the backrooms guild
         )
-        self.ctx_menu_tldr_execute = app_commands.ContextMenu(
-            name="TL;DR Execute",
-            callback=self.ctx_menu_tldr_execute,
-            type=AppCommandType.message,
-            guild_ids=[
-                self.bot.backrooms.id
-            ],  # needed to lock the command to the backrooms guild
-        )
-        self.bot.tree.add_command(self.ctx_menu_tldr_start)
-        self.bot.tree.add_command(self.ctx_menu_tldr_end)
-        self.bot.tree.add_command(self.ctx_menu_tldr_execute)
+        self.bot.tree.add_command(self.ctx_menu_tldr_after)
+        self.bot.tree.add_command(self.ctx_menu_tldr_before)
 
     @app_commands.command(
-        name="tldr", description="Vytvoří krátký souhrn mezi zprávami"
+        name="tldr",
+        description="Vytvoří krátký souhrn mezi zprávami. Je nutné nastavit začátek.",
     )
-    async def tldr(
-        self,
-        interaction: Interaction,
-        message_id_start: str,
-        message_id_end: str | None = None,
-    ):
-        channel = interaction.channel
+    async def tldr(self, interaction: Interaction):
+        """
+        Command to generate a summary between two messages.
+        The starting message must be set first.
+        If the ending message is not set, the last message in the channel is used.
+        """
+
+        # defer response to avoid timeout
+        await interaction.response.defer(ephemeral=self.EPHEMERAL)
+
+        async def respond(content: str):
+            """Helper function to send a followup response after defer to the interaction."""
+            return await interaction.followup.send(
+                content=content, ephemeral=self.EPHEMERAL
+            )
+
+        boundaries_key = (interaction.user.id, interaction.channel.id)
+        message_after, message_before = self.boundaries.get(
+            boundaries_key, [None, None]
+        )
+        if message_after is None:
+            await respond("Please set the starting message first.")
+            return
+        if message_before is None:
+            message_before = await self._get_last_message(interaction.channel)
 
         try:
-            message_start = await self._parse_message_id_to_message(
-                channel, message_id_start
-            )
-            if message_id_end is not None:
-                message_end = await self._parse_message_id_to_message(
-                    channel, message_id_end
-                )
-            else:
-                message_end = await self._get_last_message(channel)
+
+            tldr = await self._tldr(interaction.channel, message_after, message_before)
+            await respond(tldr)
         except TldrError as e:
-            await interaction.response.send_message(
-                content=e.error_msg, ephemeral=self.EPHEMERAL
-            )
-            return
+            await respond(e.error_msg)
         except Exception as e:
-            await interaction.response.send_message(
-                content="An unexpected error occurred.", ephemeral=self.EPHEMERAL
-            )
+            await respond("An unexpected error occurred.")
             raise e
 
-        await self._tldr(interaction, message_start, message_end)
-
-    async def ctx_menu_tldr_start(
-        self, interaction: Interaction, message_start: Message
+    async def ctx_menu_tldr_after_command(
+        self, interaction: Interaction, message_after: Message
     ):
-        # TODO
-        channel = interaction.channel
-        try:
-            message_end = await self._get_last_message(channel)
-        except TldrError as e:
-            await interaction.response.send_message(
-                content=e.error_msg, ephemeral=self.EPHEMERAL
-            )
-            return
-        await self._tldr(interaction, message_start, message_end)
+        boundaries_key = (interaction.user.id, interaction.channel.id)
+        self.boundaries[boundaries_key][0] = message_after
+        await interaction.response.send_message(
+            f"TL;DR after message set to {message_after.jump_url}", ephemeral=True
+        )
 
-    async def ctx_menu_tldr_end(self, interaction: Interaction, message_start: Message):
-        # TODO
-        channel = interaction.channel
-        try:
-            message_end = await self._get_last_message(channel)
-        except TldrError as e:
-            await interaction.response.send_message(
-                content=e.error_msg, ephemeral=self.EPHEMERAL
-            )
-            return
-        await self._tldr(interaction, message_start, message_end)
-
-    async def ctx_menu_tldr_start_execute(
-        self, interaction: Interaction, message_start: Message
+    async def ctx_menu_tldr_before_command(
+        self, interaction: Interaction, message_before: Message
     ):
-        # TODO
-        channel = interaction.channel
-        try:
-            message_end = await self._get_last_message(channel)
-        except TldrError as e:
-            await interaction.response.send_message(
-                content=e.error_msg, ephemeral=self.EPHEMERAL
-            )
-            return
-        await self._tldr(interaction, message_start, message_end)
+        boundaries_key = (interaction.user.id, interaction.channel.id)
+        self.boundaries[boundaries_key][1] = message_before
+        await interaction.response.send_message(
+            f"TL;DR before message set to {message_before.jump_url}", ephemeral=True
+        )
 
     # Remove the commands from the tree when the cog is unloaded
     async def cog_unload(self) -> None:
-        self.bot.tree.remove_command(
-            self.ctx_menu_tldr_start.name, type=self.ctx_menu_tldr_start.type
-        )
-        self.bot.tree.remove_command(
-            self.ctx_menu_tldr_end.name, type=self.ctx_menu_tldr_end.type
-        )
-        self.bot.tree.remove_command(
-            self.ctx_menu_tldr_execute.name, type=self.ctx_menu_tldr_execute.type
-        )
+        self.bot.tree.remove_command(self.ctx_menu_tldr_after)
+        self.bot.tree.remove_command(self.ctx_menu_tldr_before)
 
     async def _get_last_message(self, channel: TextChannel) -> Message:
         # try to get the last message in the channel from cache
-        message_end = channel.last_message
-        if message_end is not None:
-            return message_end
+        message_before = channel.last_message
+        if message_before is not None:
+            return message_before
         # if not found, fetch the last message manually
         async for msg in channel.history(limit=1):
             return msg
@@ -204,65 +181,58 @@ class TldrCog(commands.Cog):
 
     async def _tldr(
         self,
-        interaction: discord.Interaction,
-        message_start: Message,
-        message_end: Message,
-    ):
-        try:
-            # defer response to avoid timeout
-            await interaction.response.defer(ephemeral=self.EPHEMERAL)
+        channel: TextChannel,
+        message_after: Message,
+        message_before: Message,
+    ) -> str:
+        """
+        Generate a TL;DR summary between two messages.
 
-            channel = interaction.channel
+        :param channel: The channel where the messages are located
+        :param message_after: The starting message
+        :param message_before: The ending message
+        :return: The generated TL;DR summary
 
-            if message_start.created_at > message_end.created_at:
-                raise StartMsgOlderThanEndMsgError()
+        :raises TldrError: If an error occurs during the process
 
-            # Fetch the messages between the two messages and simplify them
-            messages = []
+        """
+        if message_after.created_at > message_before.created_at:
+            raise StartMsgOlderThanEndMsgError()
 
-            async for msg in channel.history(
-                after=message_start,
-                before=message_end,
-                oldest_first=True,
-                limit=self.MESSAGES_LIMIT,
-            ):
-                if msg.author.bot:  # skip bot messages
-                    continue
+        # Fetch the messages between the two messages and simplify them
+        messages = []
 
-                msg_content = msg.content
+        async for msg in channel.history(
+            after=message_after,
+            before=message_before,
+            oldest_first=True,
+            limit=self.MESSAGES_LIMIT,
+        ):
+            if msg.author.bot:  # skip bot messages
+                continue
 
-                # Replace user mentions with their names
-                searches = USER_RE.findall(msg_content)
-                for search in searches:
-                    user_id = search[2:-1]
-                    user = await self.bot.fetch_user(user_id)
-                    msg_content = msg_content.replace(search, user.name)
+            msg_content = msg.content
 
-                simplified_message = {
-                    "id": msg.id,
-                    "author": msg.author.name,
-                    "created_at": msg.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    "message": msg_content,
-                }
-                if msg.type == MessageType.reply:
-                    simplified_message["reply_to"] = msg.reference.message_id
-                messages.append(simplified_message)
+            # Replace user mentions with their names
+            searches = USER_RE.findall(msg_content)
+            for search in searches:
+                user_id = search[2:-1]
+                user = await self.bot.fetch_user(user_id)
+                msg_content = msg_content.replace(search, user.name)
 
-            serialized = json.dumps(messages)
-            print("serialized: ", serialized)
-            tldr = self._generate_tldr(serialized)
-            print("tldr: ", tldr)
-            await interaction.followup.send(content=tldr, ephemeral=self.EPHEMERAL)
+            simplified_message = {
+                "id": msg.id,
+                "author": msg.author.name,
+                "created_at": msg.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "message": msg_content,
+            }
+            if msg.type == MessageType.reply:
+                simplified_message["reply_to"] = msg.reference.message_id
+            messages.append(simplified_message)
 
-        except TldrError as e:
-            await interaction.followup.send(
-                content=e.error_msg, ephemeral=self.EPHEMERAL
-            )
-        except Exception as e:
-            await interaction.followup.send(
-                content="An unexpected error occurred.", ephemeral=self.EPHEMERAL
-            )
-            raise e
+        serialized = json.dumps(messages)
+        tldr = self._generate_tldr(serialized)
+        return tldr
 
 
 async def setup(bot: BackroomsBot) -> None:
