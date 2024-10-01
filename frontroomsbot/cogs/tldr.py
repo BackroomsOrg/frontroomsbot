@@ -13,6 +13,7 @@ import google.generativeai as genai
 import re
 import json
 from collections import defaultdict
+from ._config import Cfg, ConfigCog
 
 from consts import GEMINI_TOKEN
 
@@ -42,22 +43,21 @@ class StartMsgOlderThanEndMsgError(TldrError):
         super().__init__(error_msg)
 
 
-class TldrCog(commands.Cog):
+class TldrCog(ConfigCog):
     # TODO: make this configurable
     EPHEMERAL = True  # make the response ephemeral
-    GEMINI_MODEL_NAME = "gemini-1.5-flash"
-    TOKEN_LIMIT = 100_000  # to be fine-tuned
-    MESSAGES_LIMIT = 10_000  # to be fine-tuned
+    GEMINI_MODEL_NAME = Cfg(str, "gemini-1.5-flash")
+    TOKEN_LIMIT = Cfg(int, 100_000)
+    MESSAGES_LIMIT = Cfg(int, 10_000)
 
     def __init__(self, bot: BackroomsBot) -> None:
+        super().__init__(bot)
         self.bot = bot
-
         genai.configure(api_key=GEMINI_TOKEN)
-        self.model = genai.GenerativeModel(self.GEMINI_MODEL_NAME)
         # { (user_id, channel_id): [message_after, message_before] }
-        self.boundaries: defaultdict[
-            tuple[int, int], list[Message | None]
-        ] = defaultdict(lambda: [None, None])
+        self.boundaries: defaultdict[tuple[int, int], list[Message | None]] = (
+            defaultdict(lambda: [None, None])
+        )
 
         # Register the context menu commands
         self.ctx_menu_tldr_after = app_commands.ContextMenu(
@@ -76,8 +76,17 @@ class TldrCog(commands.Cog):
                 self.bot.backrooms.id
             ],  # lock the command to the backrooms guild
         )
+        self.ctx_menu_tldr_this = app_commands.ContextMenu(
+            name="TL;DR This One",
+            callback=self.ctx_menu_tldr_this_command,
+            type=AppCommandType.message,  # only for messages
+            guild_ids=[
+                self.bot.backrooms.id
+            ],  # lock the command to the backrooms guild
+        )
         self.bot.tree.add_command(self.ctx_menu_tldr_after)
         self.bot.tree.add_command(self.ctx_menu_tldr_before)
+        self.bot.tree.add_command(self.ctx_menu_tldr_this)
 
     @app_commands.command(
         name="tldr",
@@ -136,10 +145,18 @@ class TldrCog(commands.Cog):
             f"TL;DR before message set to {message_before.jump_url}", ephemeral=True
         )
 
+    async def ctx_menu_tldr_this_command(
+        self, interaction: Interaction, message: Message
+    ):
+        await interaction.response.defer(ephemeral=self.EPHEMERAL)
+        tldr = await self._generate_tldr_from_single_message(message.content)
+        await interaction.followup.send(tldr, ephemeral=self.EPHEMERAL)
+
     # Remove the commands from the tree when the cog is unloaded
     async def cog_unload(self) -> None:
         self.bot.tree.remove_command(self.ctx_menu_tldr_after)
         self.bot.tree.remove_command(self.ctx_menu_tldr_before)
+        self.bot.tree.remove_command(self.ctx_menu_tldr_this)
 
     async def _get_last_message(self, channel: TextChannel) -> Message:
         # try to get the last message in the channel from cache
@@ -150,11 +167,12 @@ class TldrCog(commands.Cog):
         async for msg in channel.history(limit=1):
             return msg
 
-    def _generate_tldr(self, messages: str) -> str:
-        tokens = self.model.count_tokens(messages)
-        if tokens.total_tokens > self.TOKEN_LIMIT:
+    async def _generate_tldr_from_conversation(self, messages: str) -> str:
+        model = genai.GenerativeModel(await self.GEMINI_MODEL_NAME)
+        tokens = model.count_tokens(messages)
+        if tokens.total_tokens > await self.TOKEN_LIMIT:
             raise TokensLimitExceededError(
-                f"Input exceeds the token limit: {self.TOKEN_LIMIT}, total tokens: {tokens.total_tokens}."
+                f"Input exceeds the token limit: {await self.TOKEN_LIMIT}, total tokens: {tokens.total_tokens}."
             )
         prompt = (
             "You are given a Discord conversation. Summarize the main points and key ideas "
@@ -162,7 +180,22 @@ class TldrCog(commands.Cog):
             "a clear and coherent summary.\n\n"
             f"Conversation:\n{messages}"
         )
-        return self.model.generate_content(prompt).text
+        return model.generate_content(prompt).text
+
+    async def _generate_tldr_from_single_message(self, message: str) -> str:
+        model = genai.GenerativeModel(await self.GEMINI_MODEL_NAME)
+        tokens = model.count_tokens(message)
+        if tokens.total_tokens > await self.TOKEN_LIMIT:
+            raise TokensLimitExceededError(
+                f"Input exceeds the token limit: {await self.TOKEN_LIMIT}, total tokens: {tokens.total_tokens}."
+            )
+        prompt = (
+            "You are given a Discord message. Summarize the main points and key ideas "
+            "in a concise manner in Czech. Focus on the most important information and provide "
+            "a clear and coherent summary.\n\n"
+            f"Message:\n{message}"
+        )
+        return model.generate_content(prompt).text
 
     async def _parse_message_id_to_message(
         self, channel: TextChannel, message_id: str
@@ -204,7 +237,7 @@ class TldrCog(commands.Cog):
             after=message_after,
             before=message_before,
             oldest_first=True,
-            limit=self.MESSAGES_LIMIT,
+            limit=await self.MESSAGES_LIMIT,
         ):
             if msg.author.bot:  # skip bot messages
                 continue
@@ -229,7 +262,7 @@ class TldrCog(commands.Cog):
             messages.append(simplified_message)
 
         serialized = json.dumps(messages)
-        tldr = self._generate_tldr(serialized)
+        tldr = await self._generate_tldr_from_conversation(serialized)
         return tldr
 
 
