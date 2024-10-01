@@ -43,7 +43,6 @@ class StartMsgOlderThanEndMsgError(TldrError):
 
 
 class TldrCog(commands.Cog):
-
     # TODO: make this configurable
     EPHEMERAL = True  # make the response ephemeral
     GEMINI_MODEL_NAME = "gemini-1.5-flash"
@@ -56,9 +55,9 @@ class TldrCog(commands.Cog):
         genai.configure(api_key=GEMINI_TOKEN)
         self.model = genai.GenerativeModel(self.GEMINI_MODEL_NAME)
         # { (user_id, channel_id): [message_after, message_before] }
-        self.boundaries: defaultdict[tuple[int, int], list[Message | None]] = (
-            defaultdict(lambda: [None, None])
-        )
+        self.boundaries: defaultdict[
+            tuple[int, int], list[Message | None]
+        ] = defaultdict(lambda: [None, None])
 
         # Register the context menu commands
         self.ctx_menu_tldr_after = app_commands.ContextMenu(
@@ -111,7 +110,6 @@ class TldrCog(commands.Cog):
             message_before = await self._get_last_message(interaction.channel)
 
         try:
-
             tldr = await self._tldr(interaction.channel, message_after, message_before)
             await respond(tldr)
         except TldrError as e:
@@ -234,6 +232,6 @@ class TldrCog(commands.Cog):
         tldr = self._generate_tldr(serialized)
         return tldr
 
-      
+
 async def setup(bot: BackroomsBot) -> None:
     await bot.add_cog(TldrCog(bot), guild=bot.backrooms)
