@@ -92,7 +92,7 @@ class LLMCog(ConfigCog):
             raise RuntimeError(f"Groq failed {response.status_code}: {json}")
 
     async def handle_llama(self, conversation: list[dict]):
-        return await self.handle_groq("llama-3.1-70b-versatile", conversation)
+        return await self.handle_groq("llama-3.3-70b-versatile", conversation)
 
     async def handle_gemma(self, conversation: list[dict]):
         return await self.handle_groq("gemma2-9b-it", conversation)
