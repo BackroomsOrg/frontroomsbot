@@ -9,7 +9,7 @@ RUN pip install poetry
 RUN poetry config virtualenvs.create false
 RUN adduser --shell /bin/bash bot
 
-COPY pyproject.toml poetry.lock /app/
+COPY README.md pyproject.toml poetry.lock /app/
 
 RUN poetry install
 
