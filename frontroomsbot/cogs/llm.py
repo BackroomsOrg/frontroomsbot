@@ -97,12 +97,16 @@ class LLMCog(ConfigCog):
     async def handle_gemma(self, conversation: list[dict]):
         return await self.handle_groq("gemma2-9b-it", conversation)
 
+    async def handle_reasoning(self, conversation: list[dict]):
+        return await self.handle_groq("deepseek-r1-distill-llama-70b", conversation)
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         suffix_map = {
             "??": self.handle_google_gemini,
             "?!": self.handle_llama,
             "?.": self.handle_gemma,
+            "?r": self.handle_reasoning,
         }
 
         if message.channel.id != await self.botroom_id:
