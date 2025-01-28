@@ -9,13 +9,11 @@ RUN pip install poetry
 RUN poetry config virtualenvs.create false
 RUN adduser --shell /bin/bash bot
 
-COPY README.md pyproject.toml poetry.lock /app/
+COPY . /app/
 
 RUN poetry install
 
 USER bot
-
-COPY . /app/
 
 WORKDIR /app/frontroomsbot
 
