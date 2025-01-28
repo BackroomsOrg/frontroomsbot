@@ -65,18 +65,22 @@ class LLMCog(ConfigCog):
         else:
             raise RuntimeError(f"Gemini failed {response.status_code}: {json}")
 
-    async def handle_groq(self, model, conversation: list[dict]):
+    async def handle_groq(self, model, conversation: list[dict], system_prompt=True):
         API_URL = "https://api.groq.com/openai/v1/chat/completions"
         data = {
-            "messages": [
+            "messages": conversation,
+            "model": model,
+        }
+
+        if system_prompt:
+            data["messages"].insert(
+                0,
                 {
                     "role": "system",
                     "content": "Jsi digitální asistent, který odpovídá v češtině",
                 },
-            ]
-            + conversation,
-            "model": model,
-        }
+            )
+
         headers = {
             "Authorization": f"Bearer {GROQ_TOKEN}",
             "Content-Type": "application/json",
@@ -98,7 +102,9 @@ class LLMCog(ConfigCog):
         return await self.handle_groq("gemma2-9b-it", conversation)
 
     async def handle_reasoning(self, conversation: list[dict]):
-        return await self.handle_groq("deepseek-r1-distill-llama-70b", conversation)
+        return await self.handle_groq(
+            "deepseek-r1-distill-llama-70b", conversation, system_prompt=False
+        )
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
