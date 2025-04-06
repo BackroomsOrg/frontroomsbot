@@ -97,7 +97,7 @@ class LLMCog(ConfigCog):
 
     async def handle_llama(self, conversation: list[dict]):
         return await self.handle_groq(
-            "meta-llama/llama-4-maverick-17b-128e-instruct",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
             conversation,
             system_prompt=False,
         )
