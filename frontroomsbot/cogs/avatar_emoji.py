@@ -27,14 +27,15 @@ class AvatarEmojiCog(ConfigCog):
             await self.create_avatar_emoji_in_pantry(
                 member.id, member.display_avatar.url
             )
-        interaction.response.send_message("Avatars reloaded", ephemeral=True)
+        await interaction.response.send_message("Avatars reloaded", ephemeral=True)
 
     async def create_avatar_emoji_in_pantry(
-        self, member_id: str, avatar_url: str
+        self, member_id: int, avatar_url: str
     ) -> discord.Emoji:
         # delete the emoji if it already exists
-        for em in self.bot.pantry.emojis:
-            if em.name == member_id:
+        pantry = self.bot.get_guild(self.bot.pantry_id)
+        for em in pantry.emojis:
+            if em.name == str(member_id):
                 await em.delete()
 
         with tempfile.TemporaryDirectory() as tempdir:
@@ -49,7 +50,7 @@ class AvatarEmojiCog(ConfigCog):
             image = image.resize((128, 128))
             image.save(image_path)
             # upload the avatar as a new emoji to the pantry
-            return await self.bot.pantry.create_custom_emoji(
+            return await pantry.create_custom_emoji(
                 name=member_id, image=open(image_path, "rb").read()
             )
 
