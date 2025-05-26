@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from datetime import datetime, timedelta
 from typing import Optional, Literal
+import uuid
 
 from bot import BackroomsBot
 
@@ -30,10 +31,16 @@ class BeerTrackerCog(commands.Cog):
             "total_beers": 0,
         }
 
-        # Add new beer entry with timestamp
-        user_data["beers"].append({"timestamp": current_time})
+        # Add new beer entry with timestamp and UUID
+        beer_id = str(uuid.uuid4())
+        user_data["beers"].append({
+            "id": beer_id,
+            "timestamp": current_time
+        })
+
+        # update total beers count and username if necessary
         user_data["total_beers"] += 1
-        user_data["username"] = target_user.name  # Update username if changed
+        user_data["username"] = target_user.name
 
         # Save to DB
         await db.beer_tracker.replace_one(
