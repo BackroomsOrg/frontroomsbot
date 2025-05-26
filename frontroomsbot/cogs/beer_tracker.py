@@ -60,7 +60,6 @@ class BeerTrackerCog(commands.Cog):
     ):
         db = self.bot.db
         user_data = await db.beer_tracker.find_one({"user_id": interaction.user.id})
-
         if not user_data or not user_data["beers"]:
             await interaction.response.send_message(
                 "You haven't logged any beers yet! 🚱", ephemeral=True
@@ -72,12 +71,20 @@ class BeerTrackerCog(commands.Cog):
             user_data["beers"], key=lambda x: x["timestamp"], reverse=True
         )
         total_beers = len(all_beers)
+        total_pages = (total_beers + limit - 1) // limit
+
+        # validate page number
+        if page > total_pages:
+            await interaction.response.send_message(
+                f"Page {page} doesn't exist! There are only {total_pages} page(s) available.",
+                ephemeral=True
+            )
+            return
 
         # pagination logic
         start_idx = (page - 1) * limit
         end_idx = start_idx + limit
         paginated_beers = all_beers[start_idx:end_idx]
-        total_pages = (total_beers + limit - 1) // limit
 
         # build the embed
         embed = discord.Embed(
@@ -93,8 +100,14 @@ class BeerTrackerCog(commands.Cog):
             )
 
         # add footer for pagination
-        if total_pages > 1:
-            embed.set_footer(text=f"Use /my_beers page={page+1} to view next page")
+        footer_parts = []
+        if page > 1:
+            footer_parts.append(f"Previous: /my_beers page={page-1}")
+        if page < total_pages:
+            footer_parts.append(f"Next: /my_beers page={page+1}")
+
+        if footer_parts:
+            embed.set_footer(text=" | ".join(footer_parts))
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
