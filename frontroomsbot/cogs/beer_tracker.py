@@ -77,7 +77,7 @@ class BeerTrackerCog(commands.Cog):
         if page > total_pages:
             await interaction.response.send_message(
                 f"Page {page} doesn't exist! There are only {total_pages} page(s) available.",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
