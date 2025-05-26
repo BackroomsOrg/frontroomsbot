@@ -33,10 +33,7 @@ class BeerTrackerCog(commands.Cog):
 
         # Add new beer entry with timestamp and UUID
         beer_id = str(uuid.uuid4())
-        user_data["beers"].append({
-            "id": beer_id,
-            "timestamp": current_time
-        })
+        user_data["beers"].append({"id": beer_id, "timestamp": current_time})
 
         # update total beers count and username if necessary
         user_data["total_beers"] += 1
@@ -53,27 +50,27 @@ class BeerTrackerCog(commands.Cog):
 
     @app_commands.command(name="my_beers", description="List your beer logs with UUIDs")
     @app_commands.describe(
-        limit="Number of beers to show (1-50)",
-        page="Page number to view"
+        limit="Number of beers to show (1-50)", page="Page number to view"
     )
     async def my_beers(
         self,
         interaction: discord.Interaction,
         limit: app_commands.Range[int, 1, 50] = 10,
-        page: app_commands.Range[int, 1] = 1
+        page: app_commands.Range[int, 1] = 1,
     ):
         db = self.bot.db
         user_data = await db.beer_tracker.find_one({"user_id": interaction.user.id})
 
         if not user_data or not user_data["beers"]:
             await interaction.response.send_message(
-                "You haven't logged any beers yet! 🚱",
-                ephemeral=True
+                "You haven't logged any beers yet! 🚱", ephemeral=True
             )
             return
 
         # sort by newest
-        all_beers = sorted(user_data["beers"], key=lambda x: x["timestamp"], reverse=True)
+        all_beers = sorted(
+            user_data["beers"], key=lambda x: x["timestamp"], reverse=True
+        )
         total_beers = len(all_beers)
 
         # pagination logic
@@ -86,25 +83,82 @@ class BeerTrackerCog(commands.Cog):
         embed = discord.Embed(
             title=f"Your Beer Logs (Page {page}/{total_pages})",
             description=f"Total beers: {total_beers}",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
 
         for beer in paginated_beers:
             beer_time = beer["timestamp"].strftime("%Y-%m-%d %H:%M")
             embed.add_field(
-                name=f"🍺 {beer_time}",
-                value=f"`{beer['id']}`",
-                inline=False
+                name=f"🍺 {beer_time}", value=f"`{beer['id']}`", inline=False
             )
 
         # add footer for pagination
         if total_pages > 1:
             embed.set_footer(text=f"Use /my_beers page={page+1} to view next page")
 
-        await interaction.response.send_message(
-            embed=embed,
-            ephemeral=True
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(
+        name="beer_delete", description="Delete a beer entry by its UUID"
+    )
+    @app_commands.describe(
+        beer_uuid="The UUID of the beer to delete",
+    )
+    async def beer_delete(self, interaction: discord.Interaction, beer_uuid: str):
+        db = self.bot.db
+
+        # verify UUID format
+        try:
+            uuid.UUID(beer_uuid)
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid beer UUID format!", ephemeral=True
+            )
+            return
+
+        # find which user owns this beer
+        user_data = await db.beer_tracker.find_one({"beers.id": beer_uuid})
+
+        if not user_data:
+            await interaction.response.send_message(
+                "❌ No beer found with that UUID!", ephemeral=True
+            )
+            return
+
+        # permission check
+        if user_data["user_id"] != interaction.user.id:
+            await interaction.response.send_message(
+                "❌ You can only delete your own beers!", ephemeral=True
+            )
+            return
+
+        # remove the beer entry
+        updated_beers = [b for b in user_data["beers"] if b["id"] != beer_uuid]
+
+        try:
+            deleted_beer = next(b for b in user_data["beers"] if b["id"] == beer_uuid)
+        except StopIteration:
+            await interaction.response.send_message(
+                "❌ No beer found with that UUID!", ephemeral=True
+            )
+            return
+
+        # update database
+        await db.beer_tracker.update_one(
+            {"user_id": user_data["user_id"]},
+            {"$set": {"beers": updated_beers, "total_beers": len(updated_beers)}},
         )
+
+        # build confirmation message
+        beer_time = deleted_beer["timestamp"].strftime("%Y-%m-%d %H:%M")
+
+        response = [
+            f"✅ Successfully deleted beer entry for {interaction.user.mention}!",
+            f"**Timestamp:** {beer_time}",
+            f"**UUID:** `{beer_uuid}`",
+        ]
+
+        await interaction.response.send_message("\n".join(response), ephemeral=True)
 
     @app_commands.command(name="beer_stats", description="Check beer stats for a user")
     @app_commands.describe(
