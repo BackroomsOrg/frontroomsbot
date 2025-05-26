@@ -159,6 +159,56 @@ class BeerTrackerCog(commands.Cog):
         embed.description = "\n".join(description)
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(
+        name="beer_last", description="Check when a user last had a beer"
+    )
+    @app_commands.describe(user="The user to check (defaults to you)")
+    async def beer_last(
+        self, interaction: discord.Interaction, user: Optional[discord.User] = None
+    ):
+        target_user = user or interaction.user
+        db = self.bot.db
+
+        # fetch user data
+        user_data = await db.beer_tracker.find_one({"user_id": target_user.id})
+
+        if not user_data or not user_data["beers"]:
+            await interaction.response.send_message(
+                f"{target_user.name} hasn't drunk any beers yet! 🚱"
+            )
+            return
+
+        last_beer = user_data["beers"][-1]
+        last_time = last_beer["timestamp"]
+        now = datetime.now()
+        time_diff = now - last_time
+
+        # time formatting
+        if time_diff < timedelta(minutes=1):
+            time_str = "just now"
+        elif time_diff < timedelta(hours=1):
+            minutes = int(time_diff.total_seconds() // 60)
+            time_str = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        elif time_diff < timedelta(days=1):
+            hours = int(time_diff.total_seconds() // 3600)
+            time_str = f"{hours} hour{'s' if hours != 1 else ''} ago"
+        elif time_diff < timedelta(days=30):
+            days = int(time_diff.total_seconds() // 86400)
+            time_str = f"{days} day{'s' if days != 1 else ''} ago"
+        elif time_diff < timedelta(days=365):
+            months = int(time_diff.days // 30)
+            time_str = f"{months} month{'s' if months != 1 else ''} ago"
+        else:
+            years = int(time_diff.days // 365)
+            time_str = f"{years} year{'s' if years != 1 else ''} ago"
+
+        # Add exact time for reference
+        exact_time = last_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        await interaction.response.send_message(
+            f"🍺 {target_user.name}'s last beer was **{time_str}** ({exact_time})"
+        )
+
 
 async def setup(bot: BackroomsBot) -> None:
     await bot.add_cog(BeerTrackerCog(bot), guild=bot.backrooms)
