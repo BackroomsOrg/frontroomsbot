@@ -51,6 +51,61 @@ class BeerTrackerCog(commands.Cog):
             f"{target_user.mention} has now drunk **{user_data['total_beers']}** beers total! 🍺"
         )
 
+    @app_commands.command(name="my_beers", description="List your beer logs with UUIDs")
+    @app_commands.describe(
+        limit="Number of beers to show (1-50)",
+        page="Page number to view"
+    )
+    async def my_beers(
+        self,
+        interaction: discord.Interaction,
+        limit: app_commands.Range[int, 1, 50] = 10,
+        page: app_commands.Range[int, 1] = 1
+    ):
+        db = self.bot.db
+        user_data = await db.beer_tracker.find_one({"user_id": interaction.user.id})
+
+        if not user_data or not user_data["beers"]:
+            await interaction.response.send_message(
+                "You haven't logged any beers yet! 🚱",
+                ephemeral=True
+            )
+            return
+
+        # sort by newest
+        all_beers = sorted(user_data["beers"], key=lambda x: x["timestamp"], reverse=True)
+        total_beers = len(all_beers)
+
+        # pagination logic
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_beers = all_beers[start_idx:end_idx]
+        total_pages = (total_beers + limit - 1) // limit
+
+        # build the embed
+        embed = discord.Embed(
+            title=f"Your Beer Logs (Page {page}/{total_pages})",
+            description=f"Total beers: {total_beers}",
+            color=discord.Color.blue()
+        )
+
+        for beer in paginated_beers:
+            beer_time = beer["timestamp"].strftime("%Y-%m-%d %H:%M")
+            embed.add_field(
+                name=f"🍺 {beer_time}",
+                value=f"`{beer['id']}`",
+                inline=False
+            )
+
+        # add footer for pagination
+        if total_pages > 1:
+            embed.set_footer(text=f"Use /my_beers page={page+1} to view next page")
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
     @app_commands.command(name="beer_stats", description="Check beer stats for a user")
     @app_commands.describe(
         user="The user to check (defaults to you)",
