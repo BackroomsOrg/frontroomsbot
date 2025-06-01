@@ -247,7 +247,8 @@ class BeerTrackerCog(commands.Cog):
             if period:
                 now = datetime.now()
                 if period == "day":
-                    cutoff = now - timedelta(days=1)
+                    # cutoff is the start of today
+                    cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 elif period == "week":
                     cutoff = now - timedelta(weeks=1)
                 elif period == "month":
