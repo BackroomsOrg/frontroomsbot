@@ -4,8 +4,18 @@ from discord import app_commands
 from datetime import datetime, timedelta
 from typing import Optional, Literal
 import uuid
+from zoneinfo import ZoneInfo
 
 from bot import BackroomsBot
+
+prague_tz = ZoneInfo("Europe/Prague")
+
+
+def ts_to_prague_time(ts: datetime) -> datetime:
+    """Convert a UTC timestamp to Prague timezone."""
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=ZoneInfo("UTC"))
+    return ts.astimezone(prague_tz)
 
 
 class BeerTrackerCog(commands.Cog):
@@ -48,7 +58,10 @@ class BeerTrackerCog(commands.Cog):
             f"{target_user.mention} has now drunk **{user_data['total_beers']}** beers total! 🍺"
         )
 
-    @app_commands.command(name="my_beers", description="List your beer logs with UUIDs")
+    @app_commands.command(
+        name="my_beers",
+        description="List your beer logs with UUIDs (used for deletion)",
+    )
     @app_commands.describe(
         limit="Number of beers to show (1-50)", page="Page number to view"
     )
@@ -94,7 +107,7 @@ class BeerTrackerCog(commands.Cog):
         )
 
         for beer in paginated_beers:
-            beer_time = beer["timestamp"].strftime("%Y-%m-%d %H:%M")
+            beer_time = ts_to_prague_time(beer["timestamp"]).strftime("%Y-%m-%d %H:%M")
             embed.add_field(
                 name=f"🍺 {beer_time}", value=f"`{beer['id']}`", inline=False
             )
@@ -163,7 +176,9 @@ class BeerTrackerCog(commands.Cog):
         )
 
         # build confirmation message
-        beer_time = deleted_beer["timestamp"].strftime("%Y-%m-%d %H:%M")
+        beer_time = ts_to_prague_time(deleted_beer["timestamp"]).strftime(
+            "%Y-%m-%d %H:%M"
+        )
 
         response = [
             f"✅ Successfully deleted beer entry for {interaction.user.mention}!",
@@ -198,7 +213,7 @@ class BeerTrackerCog(commands.Cog):
         # Filter beers by time period if specified
         beers = user_data["beers"]
         if period:
-            now = datetime.now()
+            now = datetime.now(prague_tz)
             if period == "day":
                 cutoff = now - timedelta(days=1)
             elif period == "week":
@@ -208,7 +223,9 @@ class BeerTrackerCog(commands.Cog):
             elif period == "year":
                 cutoff = now - timedelta(days=365)
 
-            filtered_beers = [b for b in beers if b["timestamp"] >= cutoff]
+            filtered_beers = [
+                b for b in beers if ts_to_prague_time(b["timestamp"]) >= cutoff
+            ]
             count = len(filtered_beers)
         else:
             count = user_data["total_beers"]
@@ -245,7 +262,7 @@ class BeerTrackerCog(commands.Cog):
                 continue
 
             if period:
-                now = datetime.now()
+                now = datetime.now(prague_tz)
                 if period == "day":
                     # cutoff is the start of today
                     cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -257,7 +274,9 @@ class BeerTrackerCog(commands.Cog):
                     cutoff = now - timedelta(days=365)
 
                 filtered_beers = [
-                    b for b in user_data["beers"] if b["timestamp"] >= cutoff
+                    b
+                    for b in user_data["beers"]
+                    if ts_to_prague_time(b["timestamp"]) >= cutoff
                 ]
                 count = len(filtered_beers)
             else:
@@ -309,8 +328,8 @@ class BeerTrackerCog(commands.Cog):
             return
 
         last_beer = user_data["beers"][-1]
-        last_time = last_beer["timestamp"]
-        now = datetime.now()
+        last_time = ts_to_prague_time(last_beer["timestamp"])
+        now = datetime.now(prague_tz)
         time_diff = now - last_time
 
         # time formatting
