@@ -102,8 +102,10 @@ class LLMCog(ConfigCog):
             system_prompt=False,
         )
 
-    async def handle_gemma(self, conversation: list[dict]):
-        return await self.handle_groq("gemma2-9b-it", conversation)
+    async def handle_gpt_oss(self, conversation: list[dict]):
+        return await self.handle_groq(
+            "openai/gpt-oss-120b", conversation, system_prompt=False
+        )
 
     async def handle_reasoning(self, conversation: list[dict]):
         return await self.handle_groq(
@@ -115,7 +117,7 @@ class LLMCog(ConfigCog):
         suffix_map = {
             "??": self.handle_google_gemini,
             "?!": self.handle_llama,
-            "?.": self.handle_gemma,
+            "?.": self.handle_gpt_oss,
             "?r": self.handle_reasoning,
         }
 
