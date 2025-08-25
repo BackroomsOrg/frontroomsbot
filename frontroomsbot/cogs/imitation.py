@@ -127,14 +127,16 @@ class ImitationCog(ConfigCog):
         :param reply_id: The ID of the message being replied to
         :return: The formatted message
         """
+        backrooms = self.bot.get_guild(self.bot.backrooms.id)
+        pantry = self.bot.get_guild(self.bot.pantry_id)
 
-        # emoji = None
-        # for em in self.bot.pantry.emojis:
-        #     if em.name == author:
-        #         emoji = em
-        #         break
-        # if not emoji:
-        emoji = "❄️"
+        emoji = "❄️"  # Default emoji
+        member = backrooms.get_member_named(author)
+        if member:
+            for em in pantry.emojis:
+                if em.name == str(member.id):
+                    emoji = em
+                    break
 
         # Patch emojis
         content = re.sub(r":(\w+):", lambda x: str(self.get_emoji(x.group(1))), content)
