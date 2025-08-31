@@ -22,14 +22,6 @@ def ts_to_prague_time(ts: datetime) -> datetime:
     return ts.astimezone(prague_tz)
 
 
-def format_volume(volume_liters: float) -> str:
-    """Format volume in liters to a readable string."""
-    ml = volume_liters * 1000
-    if ml >= 1000:
-        return f"{volume_liters:.2f}L"
-    else:
-        return f"{ml:.0f}ml"
-
 class ShotTrackerCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
@@ -86,7 +78,7 @@ class ShotTrackerCog(commands.Cog):
 
         await interaction.response.send_message(
             f"{target_user.mention} has now drunk **{user_data['total_shots']}** shots "
-            f"(**{format_volume(user_data['total_volume'])}** total)!"
+            f"(**{user_data['total_volume']:.2f}l** total)!"
         )
 
     @app_commands.command(
@@ -101,7 +93,7 @@ class ShotTrackerCog(commands.Cog):
 
         await interaction.response.send_message(
             f"{target_user.mention} has now drunk **{user_data['total_shots']}** shots "
-            f"(**{format_volume(user_data['total_volume'])}** total)!"
+            f"(**{user_data['total_volume']:.2f}l** total)!"
         )
     
     @app_commands.command(
@@ -205,16 +197,15 @@ class ShotTrackerCog(commands.Cog):
         # Build the embed
         embed = discord.Embed(
             title=f"Your Shot Logs (Page {page}/{total_pages})",
-            description=f"Total shots: {total_shots} | Total volume: {format_volume(user_data.get('total_volume', 0))}",
+            description=f"Total shots: {total_shots} | Total volume: {user_data.get('total_volume', 0):.2f}l",
             color=discord.Color.orange(),
         )
 
         for shot in paginated_shots:
             shot_time = ts_to_prague_time(shot["timestamp"]).strftime("%Y-%m-%d %H:%M")
             shot_type = "🥃" if shot.get("type") == "full_shot" else "🥃½"
-            volume_str = format_volume(shot.get("volume", FULL_SHOT_VOLUME))
             embed.add_field(
-                name=f"{shot_type} {shot_time} ({volume_str})",
+                name=f"{shot_type} {shot_time} ({shot.get('volume', FULL_SHOT_VOLUME):.2f}l)",
                 value=f"`{shot['id']}`",
                 inline=False
             )
@@ -295,7 +286,7 @@ class ShotTrackerCog(commands.Cog):
             "%Y-%m-%d %H:%M"
         )
         shot_type = "Full shot" if deleted_shot.get("type") == "full_shot" else "Half shot"
-        volume_str = format_volume(deleted_shot.get("volume", FULL_SHOT_VOLUME))
+        volume_str = f"{deleted_shot.get('volume', FULL_SHOT_VOLUME):.2f}l"
 
         response = [
             f"✅ Successfully deleted shot entry for {interaction.user.mention}!",
@@ -353,7 +344,7 @@ class ShotTrackerCog(commands.Cog):
 
         await interaction.response.send_message(
             f"**{target_user.name}** has drunk **{count}** shots "
-            f"(**{format_volume(volume)}**) ({period})! 🥃"
+            f"(**{volume:.2f}l**) ({period})! 🥃"
         )
 
     @app_commands.command(
@@ -433,9 +424,9 @@ class ShotTrackerCog(commands.Cog):
         description = []
         for idx, (_, count, volume, user_id) in enumerate(leaderboard, 1):
             if sort_by == "volume":
-                description.append(f"**{idx}.** <@{user_id}> - **{format_volume(volume)}** ({count} shots) 🥃")
+                description.append(f"**{idx}.** <@{user_id}> - **{volume:.2f}l** ({count} shots) 🥃")
             else:
-                description.append(f"**{idx}.** <@{user_id}> - **{count}** shots ({format_volume(volume)}) 🥃")
+                description.append(f"**{idx}.** <@{user_id}> - **{count}** shots ({volume:.2f}l) 🥃")
 
         embed.description = "\n".join(description)
         await interaction.response.send_message(embed=embed)
