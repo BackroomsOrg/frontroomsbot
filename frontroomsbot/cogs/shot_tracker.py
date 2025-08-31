@@ -47,12 +47,14 @@ class ShotTrackerCog(commands.Cog):
 
         # Add new shot entry
         shot_id = str(uuid.uuid4())
-        user_data["shots"].append({
-            "id": shot_id,
-            "timestamp": current_time,
-            "volume": volume,
-            "type": shot_type,
-        })
+        user_data["shots"].append(
+            {
+                "id": shot_id,
+                "timestamp": current_time,
+                "volume": volume,
+                "type": shot_type,
+            }
+        )
 
         # Update totals and username
         user_data["total_shots"] += 1
@@ -63,9 +65,9 @@ class ShotTrackerCog(commands.Cog):
         await db.shot_tracker.replace_one(
             {"user_id": target_user.id}, user_data, upsert=True
         )
-        
+
         return user_data
-    
+
     @app_commands.command(
         name="shot", description="Log a shot for yourself or someone else!"
     )
@@ -95,15 +97,16 @@ class ShotTrackerCog(commands.Cog):
             f"{target_user.mention} has now drunk **{user_data['total_shots']}** shots "
             f"(**{user_data['total_volume']:.2f}l** total)!"
         )
-    
+
     @app_commands.command(
         name="mass_shot", description="Log a shot for multiple users at once!"
     )
-    @app_commands.describe(
-        users="Select all the people who drank together"
-    )
+    @app_commands.describe(users="Select all the people who drank together")
     async def mass_shot(
-        self, interaction: discord.Interaction, users: list[discord.User], volume: Optional[Literal["half", "full"]] = "full"
+        self,
+        interaction: discord.Interaction,
+        users: list[discord.User],
+        volume: Optional[Literal["half", "full"]] = "full",
     ):
         if not users:
             await interaction.response.send_message(
@@ -116,7 +119,7 @@ class ShotTrackerCog(commands.Cog):
             await self._log_shot(
                 user=target_user,
                 volume=FULL_SHOT_VOLUME if volume == "full" else HALF_SHOT_VOLUME,
-                shot_type="full_shot" if volume == "full" else "half_shot"
+                shot_type="full_shot" if volume == "full" else "half_shot",
             )
 
         await interaction.response.send_message(
@@ -145,11 +148,12 @@ class ShotTrackerCog(commands.Cog):
     @app_commands.command(
         name="hory_lesy", description="Log a shot for multiple users at once!"
     )
-    @app_commands.describe(
-        users="Select all the people who drank together"
-    )
+    @app_commands.describe(users="Select all the people who drank together")
     async def mass_shot_alias(
-        self, interaction: discord.Interaction, users: list[discord.User], volume: Optional[Literal["half", "full"]] = "full"
+        self,
+        interaction: discord.Interaction,
+        users: list[discord.User],
+        volume: Optional[Literal["half", "full"]] = "full",
     ):
         await self.mass_shot(interaction, users, volume)
 
@@ -207,7 +211,7 @@ class ShotTrackerCog(commands.Cog):
             embed.add_field(
                 name=f"{shot_type} {shot_time} ({shot.get('volume', FULL_SHOT_VOLUME):.2f}l)",
                 value=f"`{shot['id']}`",
-                inline=False
+                inline=False,
             )
 
         # Add footer for pagination
@@ -276,7 +280,7 @@ class ShotTrackerCog(commands.Cog):
                 "$set": {
                     "shots": updated_shots,
                     "total_shots": len(updated_shots),
-                    "total_volume": new_total_volume
+                    "total_volume": new_total_volume,
                 }
             },
         )
@@ -285,7 +289,9 @@ class ShotTrackerCog(commands.Cog):
         shot_time = ts_to_prague_time(deleted_shot["timestamp"]).strftime(
             "%Y-%m-%d %H:%M"
         )
-        shot_type = "Full shot" if deleted_shot.get("type") == "full_shot" else "Half shot"
+        shot_type = (
+            "Full shot" if deleted_shot.get("type") == "full_shot" else "Half shot"
+        )
         volume_str = f"{deleted_shot.get('volume', FULL_SHOT_VOLUME):.2f}l"
 
         response = [
@@ -387,7 +393,8 @@ class ShotTrackerCog(commands.Cog):
                     cutoff = now - timedelta(days=365)
 
                 filtered_shots = [
-                    s for s in user_data["shots"]
+                    s
+                    for s in user_data["shots"]
                     if ts_to_prague_time(s["timestamp"]) >= cutoff
                 ]
                 count = len(filtered_shots)
@@ -397,7 +404,9 @@ class ShotTrackerCog(commands.Cog):
                 volume = user_data.get("total_volume", 0)
 
             if count > 0:
-                leaderboard.append((user_data["username"], count, volume, user_data["user_id"]))
+                leaderboard.append(
+                    (user_data["username"], count, volume, user_data["user_id"])
+                )
 
         # Sort by count or volume
         if sort_by == "volume":
@@ -418,15 +427,19 @@ class ShotTrackerCog(commands.Cog):
         sort_str = "volume" if sort_by == "volume" else "count"
         embed = discord.Embed(
             title=f"🥃 Top Shot Drinkers by {sort_str} ({period_str}) 🥃",
-            color=discord.Color.gold()
+            color=discord.Color.gold(),
         )
 
         description = []
         for idx, (_, count, volume, user_id) in enumerate(leaderboard, 1):
             if sort_by == "volume":
-                description.append(f"**{idx}.** <@{user_id}> - **{volume:.2f}l** ({count} shots) 🥃")
+                description.append(
+                    f"**{idx}.** <@{user_id}> - **{volume:.2f}l** ({count} shots) 🥃"
+                )
             else:
-                description.append(f"**{idx}.** <@{user_id}> - **{count}** shots ({volume:.2f}l) 🥃")
+                description.append(
+                    f"**{idx}.** <@{user_id}> - **{count}** shots ({volume:.2f}l) 🥃"
+                )
 
         embed.description = "\n".join(description)
         await interaction.response.send_message(embed=embed)
