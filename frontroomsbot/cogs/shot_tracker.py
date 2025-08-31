@@ -11,8 +11,8 @@ from bot import BackroomsBot
 prague_tz = ZoneInfo("Europe/Prague")
 
 # Constants for shot volumes (in liters)
-FULL_SHOT_VOLUME = 0.05  # 50ml
-HALF_SHOT_VOLUME = 0.025  # 25ml
+FULL_SHOT_VOLUME = 0.05  # 0.5dl
+HALF_SHOT_VOLUME = 0.025  # 0.25dl
 
 
 def ts_to_prague_time(ts: datetime) -> datetime:
@@ -30,20 +30,18 @@ def format_volume(volume_liters: float) -> str:
     else:
         return f"{ml:.0f}ml"
 
-
 class ShotTrackerCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
 
-    @app_commands.command(
-        name="shot", description="Log a shot for yourself or someone else!"
-    )
-    @app_commands.describe(user="Who drank the shot? (Defaults to you)")
-    async def log_shot(
-        self, interaction: discord.Interaction, user: Optional[discord.User] = None
+    async def _log_shot(
+        self,
+        user: discord.User,
+        volume: float,
+        shot_type: str,
     ):
         db = self.bot.db
-        target_user = user or interaction.user
+        target_user = user
         current_time = datetime.now()
 
         # Get or create user's shot data
@@ -55,28 +53,40 @@ class ShotTrackerCog(commands.Cog):
             "total_volume": 0.0,
         }
 
-        # Add new shot entry with timestamp, UUID, and volume
+        # Add new shot entry
         shot_id = str(uuid.uuid4())
         user_data["shots"].append({
             "id": shot_id,
             "timestamp": current_time,
-            "volume": FULL_SHOT_VOLUME,
-            "type": "full_shot"
+            "volume": volume,
+            "type": shot_type,
         })
 
         # Update totals and username
         user_data["total_shots"] += 1
-        user_data["total_volume"] += FULL_SHOT_VOLUME
+        user_data["total_volume"] += volume
         user_data["username"] = target_user.name
 
         # Save to DB
         await db.shot_tracker.replace_one(
             {"user_id": target_user.id}, user_data, upsert=True
         )
+        
+        return user_data
+    
+    @app_commands.command(
+        name="shot", description="Log a shot for yourself or someone else!"
+    )
+    @app_commands.describe(user="Who drank the shot? (Defaults to you)")
+    async def log_shot(
+        self, interaction: discord.Interaction, user: Optional[discord.User] = None
+    ):
+        target_user = user or interaction.user
+        user_data = await self._log_shot(target_user, FULL_SHOT_VOLUME, "full_shot")
 
         await interaction.response.send_message(
             f"{target_user.mention} has now drunk **{user_data['total_shots']}** shots "
-            f"(**{format_volume(user_data['total_volume'])}** total)! 🥃"
+            f"(**{format_volume(user_data['total_volume'])}** total)!"
         )
 
     @app_commands.command(
@@ -86,41 +96,39 @@ class ShotTrackerCog(commands.Cog):
     async def log_half_shot(
         self, interaction: discord.Interaction, user: Optional[discord.User] = None
     ):
-        db = self.bot.db
         target_user = user or interaction.user
-        current_time = datetime.now()
-
-        # Get or create user's shot data
-        user_data = await db.shot_tracker.find_one({"user_id": target_user.id}) or {
-            "user_id": target_user.id,
-            "username": target_user.name,
-            "shots": [],
-            "total_shots": 0,
-            "total_volume": 0.0,
-        }
-
-        # Add new half shot entry
-        shot_id = str(uuid.uuid4())
-        user_data["shots"].append({
-            "id": shot_id,
-            "timestamp": current_time,
-            "volume": HALF_SHOT_VOLUME,
-            "type": "half_shot"
-        })
-
-        # Update totals and username
-        user_data["total_shots"] += 1
-        user_data["total_volume"] += HALF_SHOT_VOLUME
-        user_data["username"] = target_user.name
-
-        # Save to DB
-        await db.shot_tracker.replace_one(
-            {"user_id": target_user.id}, user_data, upsert=True
-        )
+        user_data = await self._log_shot(target_user, HALF_SHOT_VOLUME, "half_shot")
 
         await interaction.response.send_message(
             f"{target_user.mention} has now drunk **{user_data['total_shots']}** shots "
-            f"(**{format_volume(user_data['total_volume'])}** total)! 🥃"
+            f"(**{format_volume(user_data['total_volume'])}** total)!"
+        )
+    
+    @app_commands.command(
+        name="mass_shot", description="Log a shot for multiple users at once!"
+    )
+    @app_commands.describe(
+        users="Select all the people who drank together"
+    )
+    async def mass_shot(
+        self, interaction: discord.Interaction, users: list[discord.User], volume: Optional[Literal["half", "full"]] = "full"
+    ):
+        if not users:
+            await interaction.response.send_message(
+                "❌ You must mention at least one user!", ephemeral=True
+            )
+            return
+
+        # loop through mentioned users
+        for target_user in users:
+            await self._log_shot(
+                user=target_user,
+                volume=FULL_SHOT_VOLUME if volume == "full" else HALF_SHOT_VOLUME,
+                shot_type="full_shot" if volume == "full" else "half_shot"
+            )
+
+        await interaction.response.send_message(
+            f"🥃 Shots were logged for **{len(users)}** people!"
         )
 
     # Aliases for shot commands
@@ -350,7 +358,7 @@ class ShotTrackerCog(commands.Cog):
         interaction: discord.Interaction,
         period: Optional[Literal["day", "week", "month", "year"]] = None,
         limit: Optional[app_commands.Range[int, 1, 30]] = 10,
-        sort_by: Optional[Literal["count", "volume"]] = "count",
+        sort_by: Optional[Literal["count", "volume"]] = "volume",
     ):
         db = self.bot.db
         all_users = await db.shot_tracker.find().to_list(None)
@@ -464,14 +472,10 @@ class ShotTrackerCog(commands.Cog):
             years = int(time_diff.days // 365)
             time_str = f"{years} year{'s' if years != 1 else ''} ago"
 
-        # Add shot type and volume info
         exact_time = last_time.strftime("%Y-%m-%d %H:%M:%S")
-        shot_type = "full shot" if last_shot.get("type") == "full_shot" else "half shot"
-        volume_str = format_volume(last_shot.get("volume", FULL_SHOT_VOLUME))
 
         await interaction.response.send_message(
-            f"🥃 {target_user.name}'s last shot was a **{shot_type}** ({volume_str}) "
-            f"**{time_str}** ({exact_time})"
+            f"🥃 {target_user.name}'s last shot was a **{time_str}** ({exact_time}) "
         )
 
 
