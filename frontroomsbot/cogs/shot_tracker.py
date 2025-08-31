@@ -151,6 +151,17 @@ class ShotTrackerCog(commands.Cog):
         await self.log_half_shot(interaction, user)
 
     @app_commands.command(
+        name="hory_lesy", description="Log a shot for multiple users at once!"
+    )
+    @app_commands.describe(
+        users="Select all the people who drank together"
+    )
+    async def mass_shot_alias(
+        self, interaction: discord.Interaction, users: list[discord.User], volume: Optional[Literal["half", "full"]] = "full"
+    ):
+        await self.mass_shot(interaction, users, volume)
+
+    @app_commands.command(
         name="my_shots",
         description="List your shot logs with UUIDs (used for deletion)",
     )
