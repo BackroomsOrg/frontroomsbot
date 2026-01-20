@@ -29,8 +29,8 @@ class RandomUtilsCog(commands.Cog):
 
     @app_commands.command(name="flip", description="Flips a coin")
     async def flip(self, interaction: discord.Interaction):
-        # randint(0, 1) ? "True" : "False" <- same thing
-        result = "True" if randint(0, 1) else "False"
+        # randint(0, 1) ? "Heads" : "Tails"
+        result = "Heads" if randint(0, 1) else "Tails"
         await interaction.response.send_message(f"{result}")
 
     @app_commands.checks.cooldown(1, 60.0)
