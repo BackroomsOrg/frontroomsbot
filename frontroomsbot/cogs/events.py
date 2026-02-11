@@ -88,16 +88,25 @@ class EditEventModal(Modal, title="Upravit event"):
             required=False,
             max_length=256,
         )
+        place_info = event.get("place_info") or {}
+        self.phone_input = TextInput(
+            label="Telefon",
+            default=place_info.get("phone", ""),
+            required=False,
+            max_length=50,
+        )
         self.add_item(self.name_input)
         self.add_item(self.place_input)
         self.add_item(self.date_input)
+        self.add_item(self.phone_input)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         name = self.name_input.value or None
         place = self.place_input.value or None
         date = self.date_input.value or None
+        phone = self.phone_input.value or None
 
-        await self.cog.do_edit_event(interaction, self.event, name, place, date)
+        await self.cog.do_edit_event(interaction, self.event, name, place, date, phone)
 
 
 class EventsCog(commands.Cog):
@@ -178,6 +187,7 @@ class EventsCog(commands.Cog):
         name: str | None,
         place: str | None,
         date: str | None,
+        phone: str | None = None,
     ) -> None:
         event_message_id = event["message_id"]
 
@@ -188,6 +198,8 @@ class EventsCog(commands.Cog):
             updates["place"] = place
         if date:
             updates["date"] = date
+        if phone:
+            updates["place_info.phone"] = phone
 
         if not updates:
             await interaction.response.send_message(
@@ -216,6 +228,15 @@ class EventsCog(commands.Cog):
                             if field.name == "📅 Datum":
                                 embed.set_field_at(i, name="📅 Datum", value=date)
                                 break
+                    if phone:
+                        desc = embed.description or ""
+                        if "📞" in desc:
+                            lines = desc.split("\n")
+                            lines = [line for line in lines if not line.startswith("📞")]
+                            lines.append(f"📞 {phone}")
+                            embed.description = "\n".join(lines)
+                        else:
+                            embed.description = f"{desc}\n📞 {phone}"
                     await message.edit(embed=embed)
             except Exception:
                 pass
