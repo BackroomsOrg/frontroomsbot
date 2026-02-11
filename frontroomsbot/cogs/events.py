@@ -48,9 +48,7 @@ class EventSelectView(View):
         event = self.events.get(select)
 
         if event is None:
-            await interaction.response.send_message(
-                "Event nenalezen.", ephemeral=True
-            )
+            await interaction.response.send_message("Event nenalezen.", ephemeral=True)
             return
 
         if self.action == "cancel":
@@ -100,7 +98,9 @@ class EventsCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
 
-    async def get_user_events(self, user_id: int, limit: int = MAX_USER_EVENTS) -> list[dict]:
+    async def get_user_events(
+        self, user_id: int, limit: int = MAX_USER_EVENTS
+    ) -> list[dict]:
         db = self.bot.db
         cursor = db.events.find({"creator_id": user_id}).sort("_id", -1).limit(limit)
         return await cursor.to_list(length=limit)
@@ -123,6 +123,7 @@ class EventsCog(commands.Cog):
         embed.add_field(name="👤 Vytvořil", value=interaction.user.mention, inline=False)
         embed.add_field(name="👍 Zúčastní se", value="_žádní uživatelé_", inline=False)
         embed.add_field(name="🤷 Možná", value="_žádní uživatelé_", inline=False)
+        embed.add_field(name="❌ Neúčastní se", value="_žádní uživatelé_", inline=False)
 
         await interaction.response.send_message(embed=embed)
         message = await interaction.original_response()
@@ -138,12 +139,14 @@ class EventsCog(commands.Cog):
             "reactions": {
                 "👍": [],
                 "🤷": [],
+                "❌": [],
             },
         }
         await db.events.insert_one(event_data)
 
         await message.add_reaction("👍")
         await message.add_reaction("🤷")
+        await message.add_reaction("❌")
 
     @app_commands.command(
         name="edit_event", description="Edit an existing event (creator only)"
@@ -215,7 +218,9 @@ class EventsCog(commands.Cog):
             "Event úspěšně upraven!", ephemeral=True
         )
 
-    @app_commands.command(name="cancel_event", description="Cancel an event (creator only)")
+    @app_commands.command(
+        name="cancel_event", description="Cancel an event (creator only)"
+    )
     async def cancel_event(self, interaction: discord.Interaction) -> None:
         events = await self.get_user_events(interaction.user.id)
 
@@ -265,7 +270,7 @@ class EventsCog(commands.Cog):
             return
 
         emoji = payload.emoji.name
-        if emoji not in ["👍", "🤷"]:
+        if emoji not in ["👍", "🤷", "❌"]:
             return
 
         user = await self.bot.fetch_user(payload.user_id)
@@ -301,7 +306,7 @@ class EventsCog(commands.Cog):
             return
 
         emoji = payload.emoji.name
-        if emoji not in ["👍", "🤷"]:
+        if emoji not in ["👍", "🤷", "❌"]:
             return
 
         user = await self.bot.fetch_user(payload.user_id)
@@ -323,9 +328,11 @@ class EventsCog(commands.Cog):
     ) -> None:
         yes_users = reactions.get("👍", [])
         shrug_users = reactions.get("🤷", [])
+        no_users = reactions.get("❌", [])
 
         yes_text = ", ".join(yes_users) if yes_users else "_žádní uživatelé_"
         shrug_text = ", ".join(shrug_users) if shrug_users else "_žádní uživatelé_"
+        no_text = ", ".join(no_users) if no_users else "_žádní uživatelé_"
 
         embed = message.embeds[0]
         for i, field in enumerate(embed.fields):
@@ -333,6 +340,8 @@ class EventsCog(commands.Cog):
                 embed.set_field_at(i, name="👍 Zúčastní se", value=yes_text)
             elif field.name == "🤷 Možná":
                 embed.set_field_at(i, name="🤷 Možná", value=shrug_text)
+            elif field.name == "❌ Neúčastní se":
+                embed.set_field_at(i, name="❌ Neúčastní se", value=no_text)
 
         await message.edit(embed=embed)
 
