@@ -1,9 +1,13 @@
+import httpx
 import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ui import Select, View, Modal, TextInput
 
 from bot import BackroomsBot
+from consts import RESERVATION_AGENT_TOKEN
+
+PLACE_API_URL = "https://reservation-agent.krejzac.cz/research_business"
 
 MAX_USER_EVENTS = 10
 
@@ -56,6 +60,8 @@ class EventSelectView(View):
         elif self.action == "edit":
             modal = EditEventModal(event, self.cog)
             await interaction.response.send_modal(modal)
+        elif self.action == "get_place":
+            await self.cog.do_get_place(interaction, event)
 
 
 class EditEventModal(Modal, title="Upravit event"):
@@ -250,6 +256,124 @@ class EventsCog(commands.Cog):
         embed.add_field(name="📅 Datum", value=event["date"], inline=False)
 
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(
+        name="event_get_place",
+        description="Fetch detailed place info for an event (creator only)",
+    )
+    async def event_get_place(self, interaction: discord.Interaction) -> None:
+        events = await self.get_user_events(interaction.user.id)
+
+        if not events:
+            await interaction.response.send_message(
+                "Nemáš žádné eventy.", ephemeral=True
+            )
+            return
+
+        view = EventSelectView(events, "get_place", self, interaction.user.id)
+        await interaction.response.send_message(
+            "Vyber event pro získání informací o místě:", view=view, ephemeral=True
+        )
+
+    async def do_get_place(
+        self, interaction: discord.Interaction, event: dict
+    ) -> None:
+        place = event.get("place", "")
+        if not place:
+            await interaction.response.send_message(
+                "Event nemá nastavené místo.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    PLACE_API_URL,
+                    json={"prompt": place},
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "*/*",
+                        "x-magic": RESERVATION_AGENT_TOKEN or "",
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as e:
+            await interaction.followup.send(
+                f"API vrátilo chybu: {e.response.status_code}", ephemeral=True
+            )
+            return
+        except Exception as e:
+            await interaction.followup.send(
+                f"Nepodařilo se získat informace o místě: {e}", ephemeral=True
+            )
+            return
+
+        channel = self.bot.get_channel(event.get("channel_id"))
+        if channel is None:
+            await interaction.followup.send(
+                "Nepodařilo se najít kanál s eventem.", ephemeral=True
+            )
+            return
+
+        try:
+            message = await channel.fetch_message(event["message_id"])
+        except Exception:
+            await interaction.followup.send(
+                "Nepodařilo se najít zprávu s eventem.", ephemeral=True
+            )
+            return
+
+        if not message.embeds:
+            await interaction.followup.send(
+                "Event nemá embed.", ephemeral=True
+            )
+            return
+
+        embed = message.embeds[0]
+
+        place_info_parts = []
+        if data.get("name"):
+            place_info_parts.append(f"**{data['name']}**")
+        if data.get("address"):
+            place_info_parts.append(f"📍 {data['address']}")
+        if data.get("phone"):
+            place_info_parts.append(f"📞 {data['phone']}")
+        if data.get("website"):
+            place_info_parts.append(f"🌐 {data['website']}")
+        if data.get("openingHours"):
+            place_info_parts.append(f"🕐 {data['openingHours']}")
+
+        place_info = "\n".join(place_info_parts) if place_info_parts else place
+        embed.description = place_info
+
+        if data.get("description"):
+            existing_field_names = [f.name for f in embed.fields]
+            if "ℹ️ Popis" not in existing_field_names:
+                embed.insert_field_at(
+                    0, name="ℹ️ Popis", value=data["description"][:1024], inline=False
+                )
+            else:
+                for i, field in enumerate(embed.fields):
+                    if field.name == "ℹ️ Popis":
+                        embed.set_field_at(
+                            i, name="ℹ️ Popis", value=data["description"][:1024], inline=False
+                        )
+                        break
+
+        await message.edit(embed=embed)
+
+        db = self.bot.db
+        await db.events.update_one(
+            {"message_id": event["message_id"]},
+            {"$set": {"place_info": data, "researched": True}},
+        )
+
+        await interaction.followup.send(
+            "Informace o místě byly přidány k eventu!", ephemeral=True
+        )
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
