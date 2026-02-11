@@ -1,0 +1,341 @@
+import discord
+from discord import app_commands
+from discord.ext import commands
+from discord.ui import Select, View, Modal, TextInput
+
+from bot import BackroomsBot
+
+MAX_USER_EVENTS = 10
+
+
+class EventSelectView(View):
+    def __init__(
+        self, events: list[dict], action: str, cog: "EventsCog", user_id: int
+    ) -> None:
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.user_id = user_id
+        self.action = action
+        self.events = {str(e["message_id"]): e for e in events}
+
+        options = [
+            discord.SelectOption(
+                label=e.get("name", "Bez názvu")[:100],
+                description=f"📍 {e.get('place', '?')[:50]} | 📅 {e.get('date', '?')[:50]}",
+                value=str(e["message_id"]),
+            )
+            for e in events
+        ]
+
+        select = Select(
+            placeholder="Vyber event...",
+            options=options,
+            custom_id="event_select",
+        )
+        select.callback = self.select_callback
+        self.add_item(select)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "Toto menu není pro tebe.", ephemeral=True
+            )
+            return False
+        return True
+
+    async def select_callback(self, interaction: discord.Interaction) -> None:
+        select = interaction.data["values"][0]
+        event = self.events.get(select)
+
+        if event is None:
+            await interaction.response.send_message(
+                "Event nenalezen.", ephemeral=True
+            )
+            return
+
+        if self.action == "cancel":
+            await self.cog.do_cancel_event(interaction, event)
+        elif self.action == "edit":
+            modal = EditEventModal(event, self.cog)
+            await interaction.response.send_modal(modal)
+
+
+class EditEventModal(Modal, title="Upravit event"):
+    def __init__(self, event: dict, cog: "EventsCog") -> None:
+        super().__init__()
+        self.event = event
+        self.cog = cog
+
+        self.name_input = TextInput(
+            label="Název",
+            default=event.get("name", ""),
+            required=False,
+            max_length=256,
+        )
+        self.place_input = TextInput(
+            label="Místo",
+            default=event.get("place", ""),
+            required=False,
+            max_length=256,
+        )
+        self.date_input = TextInput(
+            label="Datum",
+            default=event.get("date", ""),
+            required=False,
+            max_length=256,
+        )
+        self.add_item(self.name_input)
+        self.add_item(self.place_input)
+        self.add_item(self.date_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        name = self.name_input.value or None
+        place = self.place_input.value or None
+        date = self.date_input.value or None
+
+        await self.cog.do_edit_event(interaction, self.event, name, place, date)
+
+
+class EventsCog(commands.Cog):
+    def __init__(self, bot: BackroomsBot) -> None:
+        self.bot = bot
+
+    async def get_user_events(self, user_id: int, limit: int = MAX_USER_EVENTS) -> list[dict]:
+        db = self.bot.db
+        cursor = db.events.find({"creator_id": user_id}).sort("_id", -1).limit(limit)
+        return await cursor.to_list(length=limit)
+
+    @app_commands.command(name="create_event", description="Create a new event")
+    @app_commands.describe(
+        name="Name of the event",
+        place="Where the event will take place",
+        date="When the event will happen (include time if needed)",
+    )
+    async def create_event(
+        self, interaction: discord.Interaction, name: str, place: str, date: str
+    ) -> None:
+        embed = discord.Embed(
+            title=name,
+            description=f"📍 **{place}**",
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(name="📅 Datum", value=date, inline=False)
+        embed.add_field(name="👤 Vytvořil", value=interaction.user.mention, inline=False)
+        embed.add_field(name="👍 Zúčastní se", value="_žádní uživatelé_", inline=False)
+        embed.add_field(name="🤷 Možná", value="_žádní uživatelé_", inline=False)
+
+        await interaction.response.send_message(embed=embed)
+        message = await interaction.original_response()
+
+        db = self.bot.db
+        event_data = {
+            "message_id": message.id,
+            "channel_id": message.channel.id,
+            "name": name,
+            "place": place,
+            "date": date,
+            "creator_id": interaction.user.id,
+            "reactions": {
+                "👍": [],
+                "🤷": [],
+            },
+        }
+        await db.events.insert_one(event_data)
+
+        await message.add_reaction("👍")
+        await message.add_reaction("🤷")
+
+    @app_commands.command(
+        name="edit_event", description="Edit an existing event (creator only)"
+    )
+    async def edit_event(self, interaction: discord.Interaction) -> None:
+        events = await self.get_user_events(interaction.user.id)
+
+        if not events:
+            await interaction.response.send_message(
+                "Nemáš žádné eventy k úpravě.", ephemeral=True
+            )
+            return
+
+        view = EventSelectView(events, "edit", self, interaction.user.id)
+        await interaction.response.send_message(
+            "Vyber event k úpravě:", view=view, ephemeral=True
+        )
+
+    async def do_edit_event(
+        self,
+        interaction: discord.Interaction,
+        event: dict,
+        name: str | None,
+        place: str | None,
+        date: str | None,
+    ) -> None:
+        event_message_id = event["message_id"]
+
+        updates = {}
+        if name:
+            updates["name"] = name
+        if place:
+            updates["place"] = place
+        if date:
+            updates["date"] = date
+
+        if not updates:
+            await interaction.response.send_message(
+                "Nebyly provedeny žádné změny.", ephemeral=True
+            )
+            return
+
+        db = self.bot.db
+        await db.events.update_one(
+            {"message_id": event_message_id},
+            {"$set": updates},
+        )
+
+        channel = self.bot.get_channel(event.get("channel_id"))
+        if channel is not None:
+            try:
+                message = await channel.fetch_message(event_message_id)
+                if message is not None and message.embeds:
+                    embed = message.embeds[0]
+                    if name:
+                        embed.title = name
+                    if place:
+                        embed.description = f"📍 **{place}**"
+                    if date:
+                        for i, field in enumerate(embed.fields):
+                            if field.name == "📅 Datum":
+                                embed.set_field_at(i, name="📅 Datum", value=date)
+                                break
+                    await message.edit(embed=embed)
+            except Exception:
+                pass
+
+        await interaction.response.send_message(
+            "Event úspěšně upraven!", ephemeral=True
+        )
+
+    @app_commands.command(name="cancel_event", description="Cancel an event (creator only)")
+    async def cancel_event(self, interaction: discord.Interaction) -> None:
+        events = await self.get_user_events(interaction.user.id)
+
+        if not events:
+            await interaction.response.send_message(
+                "Nemáš žádné eventy ke zrušení.", ephemeral=True
+            )
+            return
+
+        view = EventSelectView(events, "cancel", self, interaction.user.id)
+        await interaction.response.send_message(
+            "Vyber event ke zrušení:", view=view, ephemeral=True
+        )
+
+    async def do_cancel_event(
+        self, interaction: discord.Interaction, event: dict
+    ) -> None:
+        db = self.bot.db
+        await db.events.delete_one({"message_id": event["message_id"]})
+
+        embed = discord.Embed(
+            title="Event zrušen",
+            description=f"**{event['name']}** byl zrušen.",
+            color=discord.Color.red(),
+        )
+        embed.add_field(name="📍 Místo", value=event["place"], inline=False)
+        embed.add_field(name="📅 Datum", value=event["date"], inline=False)
+
+        await interaction.response.send_message(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id:
+            return
+
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel is None:
+            return
+
+        message = await channel.fetch_message(payload.message_id)
+        if message is None:
+            return
+
+        db = self.bot.db
+        event = await db.events.find_one({"message_id": payload.message_id})
+        if event is None:
+            return
+
+        emoji = payload.emoji.name
+        if emoji not in ["👍", "🤷"]:
+            return
+
+        user = await self.bot.fetch_user(payload.user_id)
+        user_mention = user.mention
+
+        reactions = event.get("reactions", {})
+        if user_mention not in reactions.get(emoji, []):
+            reactions.setdefault(emoji, []).append(user_mention)
+
+            await db.events.update_one(
+                {"message_id": payload.message_id},
+                {"$set": {"reactions": reactions}},
+            )
+
+            await self.update_event_embed(message, event, reactions)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id:
+            return
+
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel is None:
+            return
+
+        message = await channel.fetch_message(payload.message_id)
+        if message is None:
+            return
+
+        db = self.bot.db
+        event = await db.events.find_one({"message_id": payload.message_id})
+        if event is None:
+            return
+
+        emoji = payload.emoji.name
+        if emoji not in ["👍", "🤷"]:
+            return
+
+        user = await self.bot.fetch_user(payload.user_id)
+        user_mention = user.mention
+
+        reactions = event.get("reactions", {})
+        if user_mention in reactions.get(emoji, []):
+            reactions[emoji].remove(user_mention)
+
+            await db.events.update_one(
+                {"message_id": payload.message_id},
+                {"$set": {"reactions": reactions}},
+            )
+
+            await self.update_event_embed(message, event, reactions)
+
+    async def update_event_embed(
+        self, message: discord.Message, event: dict, reactions: dict
+    ) -> None:
+        yes_users = reactions.get("👍", [])
+        shrug_users = reactions.get("🤷", [])
+
+        yes_text = ", ".join(yes_users) if yes_users else "_žádní uživatelé_"
+        shrug_text = ", ".join(shrug_users) if shrug_users else "_žádní uživatelé_"
+
+        embed = message.embeds[0]
+        for i, field in enumerate(embed.fields):
+            if field.name == "👍 Zúčastní se":
+                embed.set_field_at(i, name="👍 Zúčastní se", value=yes_text)
+            elif field.name == "🤷 Možná":
+                embed.set_field_at(i, name="🤷 Možná", value=shrug_text)
+
+        await message.edit(embed=embed)
+
+
+async def setup(bot: BackroomsBot) -> None:
+    await bot.add_cog(EventsCog(bot), guild=bot.backrooms)
