@@ -10,5 +10,6 @@ GROQ_TOKEN = os.getenv("GROQ_TOKEN")
 DB_CONN = os.getenv("DB_CONN")
 ERROR_WH = os.getenv("ERROR_WH")
 PANTRY_GUILD = os.getenv("PANTRY_GUILD")
+RESERVATION_AGENT_TOKEN = os.getenv("RESERVATION_AGENT_TOKEN")
 
 COGS_DIR = "cogs"

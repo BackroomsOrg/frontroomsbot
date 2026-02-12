@@ -21,5 +21,6 @@
         ERROR_WH: '{{ ERROR_WH }}'
         GEMINI_TOKEN: '{{ GEMINI_TOKEN }}'
         GROQ_TOKEN: '{{ GROQ_TOKEN }}'
+        RESERVATION_AGENT_TOKEN: '{{ RESERVATION_AGENT_TOKEN }}'
         DB_CONN: mongodb://172.17.0.1
       pull: true
