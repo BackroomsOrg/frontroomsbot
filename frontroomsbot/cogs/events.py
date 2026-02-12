@@ -8,6 +8,11 @@ from bot import BackroomsBot
 from consts import RESERVATION_AGENT_TOKEN
 
 PLACE_API_URL = "https://reservation-agent.krejzac.cz/research_business"
+MAKE_RESERVATION_API_URL = "https://reservation-agent.krejzac.cz/make_reservation"
+CONVERSATION_DETAILS_API_URL = (
+    "https://reservation-agent.krejzac.cz/conversation_details"
+)
+RESERVATION_ALLOWED_USER_ID = 172051086071300096
 
 MAX_USER_EVENTS = 10
 
@@ -62,6 +67,11 @@ class EventSelectView(View):
             await interaction.response.send_modal(modal)
         elif self.action == "get_place":
             await self.cog.do_get_place(interaction, event)
+        elif self.action == "make_reservation":
+            modal = MakeReservationModal(event, self.cog)
+            await interaction.response.send_modal(modal)
+        elif self.action == "check_reservation_status":
+            await self.cog.do_check_reservation_status(interaction, event)
 
 
 class EditEventModal(Modal, title="Upravit event"):
@@ -109,6 +119,64 @@ class EditEventModal(Modal, title="Upravit event"):
         await self.cog.do_edit_event(interaction, self.event, name, place, date, phone)
 
 
+class MakeReservationModal(Modal, title="Vytvorit rezervaci"):
+    def __init__(self, event: dict, cog: "EventsCog") -> None:
+        super().__init__()
+        self.event = event
+        self.cog = cog
+
+        place_info = event.get("place_info") or {}
+        default_business_name = place_info.get("name") or event.get("place", "")
+        self.phone_number = place_info.get("phone") or ""
+
+        self.business_name_input = TextInput(
+            label="Nazev podniku",
+            default=default_business_name[:100],
+            required=True,
+            max_length=100,
+        )
+        self.phone_number_input = TextInput(
+            label="Volane cislo",
+            default=self.phone_number[:100],
+            required=False,
+            max_length=100,
+        )
+        self.reservation_time_input = TextInput(
+            label="Cas rezervace",
+            placeholder="Napriklad: 2026-02-14 19:00",
+            required=True,
+            max_length=100,
+        )
+        self.num_people_input = TextInput(
+            label="Pocet lidi",
+            placeholder="Napriklad: 4",
+            required=True,
+            max_length=10,
+        )
+        self.person_name_input = TextInput(
+            label="Jmeno osoby",
+            required=True,
+            placeholder="Napriklad: Roman Janota",
+            max_length=100,
+        )
+
+        self.add_item(self.business_name_input)
+        self.add_item(self.phone_number_input)
+        self.add_item(self.reservation_time_input)
+        self.add_item(self.num_people_input)
+        self.add_item(self.person_name_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await self.cog.do_make_reservation(
+            interaction=interaction,
+            event=self.event,
+            business_name=self.business_name_input.value,
+            reservation_time=self.reservation_time_input.value,
+            num_people=self.num_people_input.value,
+            person_name=self.person_name_input.value,
+        )
+
+
 class EventsCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
@@ -119,6 +187,40 @@ class EventsCog(commands.Cog):
         db = self.bot.db
         cursor = db.events.find({"creator_id": user_id}).sort("_id", -1).limit(limit)
         return await cursor.to_list(length=limit)
+
+    def _build_transcript_lines(self, transcript: list[dict]) -> list[str]:
+        lines = []
+        for turn in transcript:
+            role = turn.get("role")
+            message = (turn.get("message") or "").strip()
+            if not message:
+                continue
+
+            if role == "agent":
+                speaker = "🤖 Agent"
+            elif role == "user":
+                speaker = "👤 Person"
+            else:
+                speaker = "ℹ️ Other"
+
+            lines.append(f"{speaker}: {message}")
+        return lines
+
+    def _chunk_lines(self, lines: list[str], max_chars: int = 3500) -> list[str]:
+        if not lines:
+            return []
+
+        chunks = []
+        current = lines[0]
+        for line in lines[1:]:
+            candidate = f"{current}\n\n{line}"
+            if len(candidate) > max_chars:
+                chunks.append(current)
+                current = line
+            else:
+                current = candidate
+        chunks.append(current)
+        return chunks
 
     @app_commands.command(name="create_event", description="Create a new event")
     @app_commands.describe(
@@ -296,9 +398,7 @@ class EventsCog(commands.Cog):
             "Vyber event pro získání informací o místě:", view=view, ephemeral=True
         )
 
-    async def do_get_place(
-        self, interaction: discord.Interaction, event: dict
-    ) -> None:
+    async def do_get_place(self, interaction: discord.Interaction, event: dict) -> None:
         place = event.get("place", "")
         if not place:
             await interaction.response.send_message(
@@ -348,9 +448,7 @@ class EventsCog(commands.Cog):
             return
 
         if not message.embeds:
-            await interaction.followup.send(
-                "Event nemá embed.", ephemeral=True
-            )
+            await interaction.followup.send("Event nemá embed.", ephemeral=True)
             return
 
         embed = message.embeds[0]
@@ -380,7 +478,10 @@ class EventsCog(commands.Cog):
                 for i, field in enumerate(embed.fields):
                     if field.name == "ℹ️ Popis":
                         embed.set_field_at(
-                            i, name="ℹ️ Popis", value=data["description"][:1024], inline=False
+                            i,
+                            name="ℹ️ Popis",
+                            value=data["description"][:1024],
+                            inline=False,
                         )
                         break
 
@@ -395,6 +496,341 @@ class EventsCog(commands.Cog):
         await interaction.followup.send(
             "Informace o místě byly přidány k eventu!", ephemeral=True
         )
+
+    @app_commands.command(
+        name="make_reservation",
+        description="Create reservation call for your event",
+    )
+    async def make_reservation(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+            await interaction.response.send_message(
+                "Na tento prikaz nemas opravneni.",
+                ephemeral=True,
+            )
+            return
+
+        events = await self.get_user_events(interaction.user.id)
+        eligible_events = [
+            event for event in events if (event.get("place_info") or {}).get("phone")
+        ]
+        if not eligible_events:
+            await interaction.response.send_message(
+                "Nenalezeny zadne eventy s telefonem. Nejdriv spust /event_get_place nebo telefon dopln v /edit_event.",
+                ephemeral=True,
+            )
+            return
+
+        view = EventSelectView(
+            eligible_events, "make_reservation", self, interaction.user.id
+        )
+        await interaction.response.send_message(
+            "Vyber event pro rezervaci:",
+            view=view,
+            ephemeral=True,
+        )
+
+    async def do_make_reservation(
+        self,
+        interaction: discord.Interaction,
+        event: dict,
+        business_name: str,
+        reservation_time: str,
+        num_people: str,
+        person_name: str,
+    ) -> None:
+        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+            await interaction.response.send_message(
+                "Na tento prikaz nemas opravneni.",
+                ephemeral=True,
+            )
+            return
+
+        phone_number = (event.get("place_info") or {}).get("phone")
+        if not phone_number:
+            await interaction.response.send_message(
+                "Vybrany event nema telefon. Nejdriv dopln telefon nebo spust /event_get_place.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        public_embed = discord.Embed(
+            title="📞 Bot dělá rezervaci",
+            color=discord.Color.orange(),
+        )
+        public_embed.add_field(
+            name="Event",
+            value=event.get("name", "Neznámý event"),
+            inline=False,
+        )
+        public_embed.add_field(name="Podnik", value=business_name, inline=True)
+        public_embed.add_field(name="Telefon", value=phone_number, inline=True)
+        public_embed.add_field(name="Čas", value=reservation_time, inline=True)
+        public_embed.add_field(name="Počet lidí", value=num_people, inline=True)
+        public_embed.add_field(name="Jméno", value=person_name, inline=True)
+        await interaction.followup.send(embed=public_embed, ephemeral=False)
+
+        payload = {
+            "businessName": business_name,
+            "phoneNumber": phone_number,
+            "reservationTime": reservation_time,
+            "numPeople": num_people,
+            "personName": person_name,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    MAKE_RESERVATION_API_URL,
+                    json=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "*/*",
+                        "x-magic": RESERVATION_AGENT_TOKEN or "",
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as e:
+            await interaction.followup.send(
+                f"Reservation API vratilo chybu: {e.response.status_code}",
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            await interaction.followup.send(
+                f"Nepodarilo se vytvorit rezervaci: {e}",
+                ephemeral=True,
+            )
+            return
+
+        db = self.bot.db
+        await db.events.update_one(
+            {"message_id": event["message_id"]},
+            {
+                "$set": {
+                    "reservation.success": data.get("success"),
+                    "reservation.message": data.get("message"),
+                    "reservation.conversationId": data.get("conversationId"),
+                    "reservation.callSid": data.get("callSid"),
+                    "reservation.request": payload,
+                }
+            },
+        )
+
+        conversation_id = data.get("conversationId", "n/a")
+        call_sid = data.get("callSid", "n/a")
+        await interaction.followup.send(
+            f"Rezervace odeslana.\nconversationId: `{conversation_id}`\ncallSid: `{call_sid}`",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="check_reservation_status",
+        description="Check reservation call status and transcript",
+    )
+    async def check_reservation_status(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+            await interaction.response.send_message(
+                "Na tento prikaz nemas opravneni.",
+                ephemeral=True,
+            )
+            return
+
+        events = await self.get_user_events(interaction.user.id)
+        eligible_events = [
+            event
+            for event in events
+            if (event.get("reservation") or {}).get("conversationId")
+        ]
+        if not eligible_events:
+            await interaction.response.send_message(
+                "Nenalezeny zadne eventy s conversationId. Nejdriv spust /make_reservation.",
+                ephemeral=True,
+            )
+            return
+
+        view = EventSelectView(
+            eligible_events, "check_reservation_status", self, interaction.user.id
+        )
+        await interaction.response.send_message(
+            "Vyber event pro kontrolu stavu rezervace:",
+            view=view,
+            ephemeral=True,
+        )
+
+    async def do_check_reservation_status(
+        self, interaction: discord.Interaction, event: dict
+    ) -> None:
+        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+            await interaction.response.send_message(
+                "Na tento prikaz nemas opravneni.",
+                ephemeral=True,
+            )
+            return
+
+        reservation = event.get("reservation") or {}
+        conversation_id = reservation.get("conversationId")
+        if not conversation_id:
+            await interaction.response.send_message(
+                "U eventu chybi conversationId. Nejdriv spust /make_reservation.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.get(
+                    f"{CONVERSATION_DETAILS_API_URL}/{conversation_id}",
+                    headers={
+                        "Accept": "*/*",
+                        "x-magic": RESERVATION_AGENT_TOKEN or "",
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as e:
+            await interaction.followup.send(
+                f"Conversation API vratilo chybu: {e.response.status_code}",
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            await interaction.followup.send(
+                f"Nepodarilo se nacist status rezervace: {e}",
+                ephemeral=True,
+            )
+            return
+
+        status = data.get("status", "unknown")
+        analysis = data.get("analysis") or {}
+        metadata = data.get("metadata") or {}
+        phone_call = metadata.get("phoneCall") or {}
+        transcript = data.get("transcript") or []
+        transcript_lines = self._build_transcript_lines(transcript)
+        transcript_chunks = self._chunk_lines(transcript_lines)
+
+        status_embed = discord.Embed(
+            title=f"Status rezervace: {event.get('name', 'Event')}",
+            color=discord.Color.blurple(),
+        )
+        status_embed.add_field(name="Status", value=status, inline=True)
+        status_embed.add_field(
+            name="Uspesnost",
+            value=analysis.get("callSuccessful", "unknown"),
+            inline=True,
+        )
+        status_embed.add_field(
+            name="conversationId",
+            value=data.get("conversationId", conversation_id),
+            inline=False,
+        )
+        status_embed.add_field(
+            name="callSid",
+            value=phone_call.get("callSid", reservation.get("callSid", "n/a")),
+            inline=False,
+        )
+        status_embed.add_field(
+            name="Delka hovoru",
+            value=str(metadata.get("callDurationSecs", "n/a")),
+            inline=True,
+        )
+        status_embed.add_field(
+            name="Volane cislo",
+            value=phone_call.get("externalNumber", "n/a"),
+            inline=True,
+        )
+
+        call_summary_title = analysis.get("callSummaryTitle")
+        transcript_summary = analysis.get("transcriptSummary")
+        if call_summary_title:
+            status_embed.add_field(
+                name="Souhrn",
+                value=call_summary_title[:1024],
+                inline=False,
+            )
+        if transcript_summary:
+            status_embed.add_field(
+                name="Shrnuti hovoru",
+                value=transcript_summary[:1024],
+                inline=False,
+            )
+
+        transcript_embeds = []
+        total_chunks = len(transcript_chunks)
+        for idx, chunk in enumerate(transcript_chunks, start=1):
+            transcript_embed = discord.Embed(
+                title=f"Prepis hovoru {idx}/{total_chunks}",
+                description=chunk,
+                color=discord.Color.dark_teal(),
+            )
+            transcript_embeds.append(transcript_embed)
+
+        db = self.bot.db
+        await db.events.update_one(
+            {"message_id": event["message_id"]},
+            {
+                "$set": {
+                    "reservation.statusCheck.status": status,
+                    "reservation.statusCheck.callSuccessful": analysis.get(
+                        "callSuccessful"
+                    ),
+                    "reservation.statusCheck.callSummaryTitle": call_summary_title,
+                    "reservation.statusCheck.transcriptSummary": transcript_summary,
+                    "reservation.statusCheck.callDurationSecs": metadata.get(
+                        "callDurationSecs"
+                    ),
+                    "reservation.statusCheck.terminationReason": metadata.get(
+                        "terminationReason"
+                    ),
+                    "reservation.statusCheck.externalNumber": phone_call.get(
+                        "externalNumber"
+                    ),
+                    "reservation.statusCheck.callSid": phone_call.get("callSid"),
+                    "reservation.statusCheck.transcript": transcript,
+                }
+            },
+        )
+
+        channel = self.bot.get_channel(event.get("channel_id"))
+        if channel is not None:
+            try:
+                message = await channel.fetch_message(event["message_id"])
+                if message and message.embeds:
+                    event_embed = message.embeds[0]
+                    reservation_value = (
+                        f"Status: {status}\n"
+                        f"callSid: {phone_call.get('callSid', reservation.get('callSid', 'n/a'))}"
+                    )
+                    field_names = [field.name for field in event_embed.fields]
+                    if "📞 Rezervace" in field_names:
+                        for i, field in enumerate(event_embed.fields):
+                            if field.name == "📞 Rezervace":
+                                event_embed.set_field_at(
+                                    i,
+                                    name="📞 Rezervace",
+                                    value=reservation_value[:1024],
+                                    inline=False,
+                                )
+                                break
+                    else:
+                        event_embed.add_field(
+                            name="📞 Rezervace",
+                            value=reservation_value[:1024],
+                            inline=False,
+                        )
+                    await message.edit(embed=event_embed)
+            except Exception:
+                pass
+
+        embeds_to_send = [status_embed, *transcript_embeds]
+        for i in range(0, len(embeds_to_send), 10):
+            await interaction.followup.send(
+                embeds=embeds_to_send[i : i + 10],
+                ephemeral=False,
+            )
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
