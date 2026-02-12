@@ -7,14 +7,10 @@ from discord.ui import Select, View, Modal, TextInput
 from bot import BackroomsBot
 from consts import RESERVATION_AGENT_TOKEN
 
-PLACE_API_URL = "https://reservation-agent.krejzac.cz/research_business"
-MAKE_RESERVATION_API_URL = "https://reservation-agent.krejzac.cz/make_reservation"
-CONVERSATION_DETAILS_API_URL = (
-    "https://reservation-agent.krejzac.cz/conversation_details"
-)
-RESERVATION_ALLOWED_USER_ID = 172051086071300096
+RESERVATION_API_BASE_URL = "https://reservation-agent.krejzac.cz"
+RESERVATION_ALLOWED_USER_IDS = [172051086071300096, 1019696733019713626] # Padi, Pepa
 
-MAX_USER_EVENTS = 10
+MAX_USER_EVENTS = 10 # How many events to fetch for edit/cancel/select commands
 
 
 class EventSelectView(View):
@@ -161,16 +157,17 @@ class MakeReservationModal(Modal, title="Vytvorit rezervaci"):
         )
 
         self.add_item(self.business_name_input)
-        self.add_item(self.phone_number_input)
         self.add_item(self.reservation_time_input)
         self.add_item(self.num_people_input)
         self.add_item(self.person_name_input)
+        self.add_item(self.phone_number_input)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await self.cog.do_make_reservation(
             interaction=interaction,
             event=self.event,
             business_name=self.business_name_input.value,
+            phone_number=self.phone_number_input.value,
             reservation_time=self.reservation_time_input.value,
             num_people=self.num_people_input.value,
             person_name=self.person_name_input.value,
@@ -238,9 +235,13 @@ class EventsCog(commands.Cog):
         )
         embed.add_field(name="📅 Datum", value=date, inline=False)
         embed.add_field(name="👤 Vytvořil", value=interaction.user.mention, inline=False)
-        embed.add_field(name="👍 Zúčastní se", value="_žádní uživatelé_", inline=False)
-        embed.add_field(name="🤷 Možná", value="_žádní uživatelé_", inline=False)
-        embed.add_field(name="❌ Neúčastní se", value="_žádní uživatelé_", inline=False)
+        embed.add_field(
+            name="👍 Zúčastní se (0)", value="_žádní uživatelé_", inline=False
+        )
+        embed.add_field(name="🤷 Možná (0)", value="_žádní uživatelé_", inline=False)
+        embed.add_field(
+            name="❌ Neúčastní se (0)", value="_žádní uživatelé_", inline=False
+        )
 
         await interaction.response.send_message(embed=embed)
         message = await interaction.original_response()
@@ -264,6 +265,7 @@ class EventsCog(commands.Cog):
         await message.add_reaction("👍")
         await message.add_reaction("🤷")
         await message.add_reaction("❌")
+        await message.add_reaction("📌")
 
     @app_commands.command(
         name="edit_event", description="Edit an existing event (creator only)"
@@ -411,7 +413,7 @@ class EventsCog(commands.Cog):
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(
-                    PLACE_API_URL,
+                    f"{RESERVATION_API_BASE_URL}/research_business",
                     json={"prompt": place},
                     headers={
                         "Content-Type": "application/json",
@@ -502,7 +504,7 @@ class EventsCog(commands.Cog):
         description="Create reservation call for your event",
     )
     async def make_reservation(self, interaction: discord.Interaction) -> None:
-        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+        if interaction.user.id not in RESERVATION_ALLOWED_USER_IDS:
             await interaction.response.send_message(
                 "Na tento prikaz nemas opravneni.",
                 ephemeral=True,
@@ -534,19 +536,21 @@ class EventsCog(commands.Cog):
         interaction: discord.Interaction,
         event: dict,
         business_name: str,
+        phone_number: str,
         reservation_time: str,
         num_people: str,
         person_name: str,
     ) -> None:
-        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+        if interaction.user.id not in RESERVATION_ALLOWED_USER_IDS:
             await interaction.response.send_message(
                 "Na tento prikaz nemas opravneni.",
                 ephemeral=True,
             )
             return
 
-        phone_number = (event.get("place_info") or {}).get("phone")
-        if not phone_number:
+        event_phone_number = (event.get("place_info") or {}).get("phone")
+        effective_phone_number = phone_number.strip() or event_phone_number
+        if not effective_phone_number:
             await interaction.response.send_message(
                 "Vybrany event nema telefon. Nejdriv dopln telefon nebo spust /event_get_place.",
                 ephemeral=True,
@@ -564,7 +568,9 @@ class EventsCog(commands.Cog):
             inline=False,
         )
         public_embed.add_field(name="Podnik", value=business_name, inline=True)
-        public_embed.add_field(name="Telefon", value=phone_number, inline=True)
+        public_embed.add_field(
+            name="Telefon", value=effective_phone_number, inline=True
+        )
         public_embed.add_field(name="Čas", value=reservation_time, inline=True)
         public_embed.add_field(name="Počet lidí", value=num_people, inline=True)
         public_embed.add_field(name="Jméno", value=person_name, inline=True)
@@ -572,7 +578,7 @@ class EventsCog(commands.Cog):
 
         payload = {
             "businessName": business_name,
-            "phoneNumber": phone_number,
+            "phoneNumber": effective_phone_number,
             "reservationTime": reservation_time,
             "numPeople": num_people,
             "personName": person_name,
@@ -581,7 +587,7 @@ class EventsCog(commands.Cog):
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(
-                    MAKE_RESERVATION_API_URL,
+                    f"{RESERVATION_API_BASE_URL}/make_reservation",
                     json=payload,
                     headers={
                         "Content-Type": "application/json",
@@ -630,7 +636,7 @@ class EventsCog(commands.Cog):
         description="Check reservation call status and transcript",
     )
     async def check_reservation_status(self, interaction: discord.Interaction) -> None:
-        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+        if interaction.user.id not in RESERVATION_ALLOWED_USER_IDS:
             await interaction.response.send_message(
                 "Na tento prikaz nemas opravneni.",
                 ephemeral=True,
@@ -662,7 +668,7 @@ class EventsCog(commands.Cog):
     async def do_check_reservation_status(
         self, interaction: discord.Interaction, event: dict
     ) -> None:
-        if interaction.user.id != RESERVATION_ALLOWED_USER_ID:
+        if interaction.user.id not in RESERVATION_ALLOWED_USER_IDS:
             await interaction.response.send_message(
                 "Na tento prikaz nemas opravneni.",
                 ephemeral=True,
@@ -683,7 +689,7 @@ class EventsCog(commands.Cog):
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.get(
-                    f"{CONVERSATION_DETAILS_API_URL}/{conversation_id}",
+                    f"{RESERVATION_API_BASE_URL}/conversation_details/{conversation_id}",
                     headers={
                         "Accept": "*/*",
                         "x-magic": RESERVATION_AGENT_TOKEN or "",
@@ -851,6 +857,15 @@ class EventsCog(commands.Cog):
             return
 
         emoji = payload.emoji.name
+        if emoji == "📌":
+            if payload.user_id == event.get("creator_id") and not message.pinned:
+                await message.pin(reason="Event pinned by creator via reaction.")
+                return
+
+            user = payload.member or await self.bot.fetch_user(payload.user_id)
+            await message.remove_reaction(payload.emoji, user)
+            return
+
         if emoji not in ["👍", "🤷", "❌"]:
             return
 
@@ -915,14 +930,30 @@ class EventsCog(commands.Cog):
         shrug_text = ", ".join(shrug_users) if shrug_users else "_žádní uživatelé_"
         no_text = ", ".join(no_users) if no_users else "_žádní uživatelé_"
 
+        yes_count = len(yes_users)
+        shrug_count = len(shrug_users)
+        no_count = len(no_users)
+
         embed = message.embeds[0]
         for i, field in enumerate(embed.fields):
-            if field.name == "👍 Zúčastní se":
-                embed.set_field_at(i, name="👍 Zúčastní se", value=yes_text)
-            elif field.name == "🤷 Možná":
-                embed.set_field_at(i, name="🤷 Možná", value=shrug_text)
-            elif field.name == "❌ Neúčastní se":
-                embed.set_field_at(i, name="❌ Neúčastní se", value=no_text)
+            if field.name.startswith("👍 Zúčastní se"):
+                embed.set_field_at(
+                    i,
+                    name=f"👍 Zúčastní se ({yes_count})",
+                    value=yes_text,
+                )
+            elif field.name.startswith("🤷 Možná"):
+                embed.set_field_at(
+                    i,
+                    name=f"🤷 Možná ({shrug_count})",
+                    value=shrug_text,
+                )
+            elif field.name.startswith("❌ Neúčastní se"):
+                embed.set_field_at(
+                    i,
+                    name=f"❌ Neúčastní se ({no_count})",
+                    value=no_text,
+                )
 
         await message.edit(embed=embed)
 
