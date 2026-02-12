@@ -8,9 +8,9 @@ from bot import BackroomsBot
 from consts import RESERVATION_AGENT_TOKEN
 
 RESERVATION_API_BASE_URL = "https://reservation-agent.krejzac.cz"
-RESERVATION_ALLOWED_USER_IDS = [172051086071300096, 1019696733019713626] # Padi, Pepa
+RESERVATION_ALLOWED_USER_IDS = [172051086071300096, 1019696733019713626]  # Padi, Pepa
 
-MAX_USER_EVENTS = 10 # How many events to fetch for edit/cancel/select commands
+MAX_USER_EVENTS = 10  # How many events to fetch for edit/cancel/select commands
 
 
 class EventSelectView(View):
