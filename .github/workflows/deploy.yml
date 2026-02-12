@@ -67,3 +67,4 @@ jobs:
           --extra-vars ERROR_WH=${{secrets.ERROR_WH}}
           --extra-vars GEMINI_TOKEN=${{secrets.GEMINI_TOKEN}}
           --extra-vars GROQ_TOKEN=${{secrets.GROQ_TOKEN}}
+          --extra-vars RESERVATION_AGENT_TOKEN=${{secrets.RESERVATION_AGENT_TOKEN}}
