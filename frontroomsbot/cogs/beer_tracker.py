@@ -22,7 +22,12 @@ class BeerTrackerCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
 
-    async def _confirmation_message(self, interaction: discord.Interaction, user: discord.User | discord.Member, count: int):
+    async def _confirmation_message(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User | discord.Member,
+        count: int,
+    ):
         await interaction.response.send_message(
             f"{user.mention} has now drunk **{count}** beers total! 🍺"
         )
@@ -65,7 +70,9 @@ class BeerTrackerCog(commands.Cog):
         target_user = user or interaction.user
         user_data = await self._log_beers_for_user(target_user, 1)
 
-        await self._confirmation_message(interaction, target_user, user_data["total_beers"])
+        await self._confirmation_message(
+            interaction, target_user, user_data["total_beers"]
+        )
 
     @app_commands.command(
         name="beers", description="Log multiple beers for yourself or someone else! 🍺"
@@ -83,7 +90,9 @@ class BeerTrackerCog(commands.Cog):
         target_user = user or interaction.user
         user_data = await self._log_beers_for_user(target_user, count)
 
-        await self._confirmation_message(interaction, target_user, user_data["total_beers"])
+        await self._confirmation_message(
+            interaction, target_user, user_data["total_beers"]
+        )
 
     @app_commands.command(
         name="my_beers",
