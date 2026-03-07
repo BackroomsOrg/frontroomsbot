@@ -22,15 +22,20 @@ class BeerTrackerCog(commands.Cog):
     def __init__(self, bot: BackroomsBot) -> None:
         self.bot = bot
 
-    @app_commands.command(
-        name="beer", description="Log a beer for yourself or someone else! 🍺"
-    )
-    @app_commands.describe(user="Who drank the beer? (Defaults to you)")
-    async def log_beer(
-        self, interaction: discord.Interaction, user: Optional[discord.User] = None
+    async def _confirmation_message(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User | discord.Member,
+        count: int,
+    ):
+        await interaction.response.send_message(
+            f"{user.mention} has now drunk **{count}** beers total! 🍺"
+        )
+
+    async def _log_beers_for_user(
+        self, target_user: discord.User | discord.Member, count: int
     ):
         db = self.bot.db
-        target_user = user or interaction.user
         current_time = datetime.now()
 
         # Get or create user's beer data
@@ -41,21 +46,52 @@ class BeerTrackerCog(commands.Cog):
             "total_beers": 0,
         }
 
-        # Add new beer entry with timestamp and UUID
-        beer_id = str(uuid.uuid4())
-        user_data["beers"].append({"id": beer_id, "timestamp": current_time})
+        beers = user_data["beers"]
+        for _ in range(count):
+            beers.append({"id": str(uuid.uuid4()), "timestamp": current_time})
 
-        # update total beers count and username if necessary
-        user_data["total_beers"] += 1
+        user_data["beers"] = beers
+        user_data["total_beers"] = user_data["total_beers"] + count
         user_data["username"] = target_user.name
 
-        # Save to DB
         await db.beer_tracker.replace_one(
             {"user_id": target_user.id}, user_data, upsert=True
         )
 
-        await interaction.response.send_message(
-            f"{target_user.mention} has now drunk **{user_data['total_beers']}** beers total! 🍺"
+        return user_data
+
+    @app_commands.command(
+        name="beer", description="Log a beer for yourself or someone else! 🍺"
+    )
+    @app_commands.describe(user="Who drank the beer? (Defaults to you)")
+    async def log_beer(
+        self, interaction: discord.Interaction, user: Optional[discord.User] = None
+    ):
+        target_user = user or interaction.user
+        user_data = await self._log_beers_for_user(target_user, 1)
+
+        await self._confirmation_message(
+            interaction, target_user, user_data["total_beers"]
+        )
+
+    @app_commands.command(
+        name="beers", description="Log multiple beers for yourself or someone else! 🍺"
+    )
+    @app_commands.describe(
+        count="How many beers to log (1-50)",
+        user="Who drank the beers? (Defaults to you)",
+    )
+    async def log_beers(
+        self,
+        interaction: discord.Interaction,
+        count: app_commands.Range[int, 1, 50],
+        user: Optional[discord.User] = None,
+    ):
+        target_user = user or interaction.user
+        user_data = await self._log_beers_for_user(target_user, count)
+
+        await self._confirmation_message(
+            interaction, target_user, user_data["total_beers"]
         )
 
     @app_commands.command(
