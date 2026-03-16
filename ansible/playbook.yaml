@@ -11,6 +11,8 @@
     docker_container:
       name: bot
       state: started
+      restart_policy: unless-stopped
+      recreate: true
       platform: linux/arm64/v8
       image: 'ghcr.io/{{ username }}/bot:latest'
       env:
