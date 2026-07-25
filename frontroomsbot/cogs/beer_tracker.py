@@ -6,6 +6,8 @@ from typing import Optional, Literal
 import uuid
 from zoneinfo import ZoneInfo
 
+from pymongo import ReturnDocument
+
 from bot import BackroomsBot
 
 prague_tz = ZoneInfo("Europe/Prague")
@@ -35,30 +37,34 @@ class BeerTrackerCog(commands.Cog):
     async def _log_beers_for_user(
         self, target_user: discord.User | discord.Member, count: int
     ):
-        db = self.bot.db
         current_time = datetime.now()
+        new_beers = [
+            {"id": str(uuid.uuid4()), "timestamp": current_time} for _ in range(count)
+        ]
 
-        # Get or create user's beer data
-        user_data = await db.beer_tracker.find_one({"user_id": target_user.id}) or {
-            "user_id": target_user.id,
-            "username": target_user.name,
-            "beers": [],
-            "total_beers": 0,
-        }
-
-        beers = user_data["beers"]
-        for _ in range(count):
-            beers.append({"id": str(uuid.uuid4()), "timestamp": current_time})
-
-        user_data["beers"] = beers
-        user_data["total_beers"] = user_data["total_beers"] + count
-        user_data["username"] = target_user.name
-
-        await db.beer_tracker.replace_one(
-            {"user_id": target_user.id}, user_data, upsert=True
+        return await self.bot.db.beer_tracker.find_one_and_update(
+            {"user_id": target_user.id},
+            {
+                "$push": {"beers": {"$each": new_beers}},
+                "$inc": {"total_beers": count},
+                "$set": {"username": target_user.name},
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
         )
 
-        return user_data
+    async def _handle_beer_log(
+        self,
+        interaction: discord.Interaction,
+        user: Optional[discord.User],
+        count: int,
+    ):
+        target_user = user or interaction.user
+        user_data = await self._log_beers_for_user(target_user, count)
+
+        await self._confirmation_message(
+            interaction, target_user, user_data["total_beers"]
+        )
 
     @app_commands.command(
         name="beer", description="Log a beer for yourself or someone else! 🍺"
@@ -67,12 +73,7 @@ class BeerTrackerCog(commands.Cog):
     async def log_beer(
         self, interaction: discord.Interaction, user: Optional[discord.User] = None
     ):
-        target_user = user or interaction.user
-        user_data = await self._log_beers_for_user(target_user, 1)
-
-        await self._confirmation_message(
-            interaction, target_user, user_data["total_beers"]
-        )
+        await self._handle_beer_log(interaction, user, 1)
 
     @app_commands.command(
         name="beers", description="Log multiple beers for yourself or someone else! 🍺"
@@ -87,12 +88,7 @@ class BeerTrackerCog(commands.Cog):
         count: app_commands.Range[int, 1, 50],
         user: Optional[discord.User] = None,
     ):
-        target_user = user or interaction.user
-        user_data = await self._log_beers_for_user(target_user, count)
-
-        await self._confirmation_message(
-            interaction, target_user, user_data["total_beers"]
-        )
+        await self._handle_beer_log(interaction, user, count)
 
     @app_commands.command(
         name="my_beers",
